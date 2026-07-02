@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediChat — AI Health Assistant</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f6faf7;color:#1a2e1f;display:flex}
+
+  /* Sidebar */
+  .sidebar{width:280px;min-width:280px;height:100vh;background:#f0f7f2;border-right:1px solid #d8e8da;display:flex;flex-direction:column;z-index:10;transition:transform .25s}
+  .sidebar-header{padding:20px}
+  .logo{display:flex;align-items:center;gap:11px;cursor:pointer;background:none;border:none;font:inherit;text-align:left;padding:0;color:inherit;text-decoration:none}
+  .logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#2d9a4e,#3cb860);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .logo-text{font-family:Georgia,serif;font-size:1.2rem;font-weight:600}
+  .logo-sub{font-size:.7rem;color:#8aa890;text-transform:uppercase;letter-spacing:.04em}
+  .s-actions{padding:14px 20px;border-bottom:1px solid #d8e8da;border-top:1px solid #d8e8da}
+  .btn-nc{width:100%;display:flex;align-items:center;gap:8px;padding:11px 16px;background:#fff;border:1px solid #d8e8da;border-radius:14px;color:#2d9a4e;font:inherit;font-size:.875rem;font-weight:500;cursor:pointer}
+  .btn-nc:hover{background:#d4f0dc;border-color:#3cb860}
+  .btn-nc svg{width:16px;height:16px;flex-shrink:0;pointer-events:none}
+  .conv-list{flex:1;overflow-y:auto;padding:10px 12px}
+  .conv-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:2px;font-size:.85rem;color:#4a6b52;position:relative;user-select:none}
+  .conv-item:hover{background:#fff}
+  .conv-item.act{background:#fff;color:#2d9a4e}
+  .conv-item.act::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;background:#2d9a4e;border-radius:0 2px 2px 0}
+  .conv-dot{width:8px;height:8px;background:#d4f0dc;border-radius:50%;flex-shrink:0}
+  .conv-item.act .conv-dot{background:#2d9a4e;box-shadow:0 0 8px #3cb860}
+  .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+  .conv-del{opacity:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:none;border:none;cursor:pointer;color:#8aa890;font-size:1rem;flex-shrink:0;line-height:1;position:relative;z-index:2}
+  .conv-item:hover .conv-del{opacity:1}
+  .conv-del:hover{background:#fce4e4;color:#c53030}
+  .s-footer{border-top:1px solid #d8e8da;padding:12px 16px}
+  .s-footer-user{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;cursor:pointer;transition:background .2s}
+  .s-footer-user:hover{background:#fff}
+  .s-footer-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2d9a4e,#3cb860);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:.85rem;flex-shrink:0}
+  .s-footer-info{flex:1;min-width:0}
+  .s-footer-name{font-size:.8rem;font-weight:600;color:#1a2e1f}
+  .s-footer-role{font-size:.68rem;color:#8aa890}
+  .s-footer-badge{width:8px;height:8px;background:#3cb860;border-radius:50%;flex-shrink:0;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
+  .empty{text-align:center;padding:30px 20px;color:#8aa890;font-size:.8rem}
+
+  /* Main */
+  .main{flex:1;height:100vh;display:flex;flex-direction:column;min-width:0;position:relative}
+  .chat-header{padding:14px 28px;border-bottom:1px solid #d8e8da;background:#edf5ef;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+  .hl{display:flex;align-items:center;gap:12px}
+  .htitle{font-family:Georgia,serif;font-size:1rem;font-weight:500}
+  .mbtn{display:none;width:34px;height:34px;background:#fff;border:1px solid #d8e8da;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:1rem;color:#4a6b52}
+  .hr{display:flex;align-items:center;gap:8px}
+  .hbtn{width:34px;height:34px;background:none;border:1px solid #d8e8da;border-radius:8px;color:#4a6b52;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.9rem;transition:background .2s,color .2s}
+  .hbtn:hover{background:#fff;color:#1a2e1f}
+  .hbtn svg{width:16px;height:16px;pointer-events:none}
+
+  /* Messages */
+  .msgs{flex:1;overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:24px}
+  .msg{display:flex;gap:14px;max-width:780px;animation:up .35s}
+  @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  .msg.usr{align-self:flex-end;flex-direction:row-reverse}
+  .msg-av{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .msg.ai .msg-av{background:#d4f0dc}
+  .msg.usr .msg-av{background:#fff;border:1px solid #d8e8da}
+  .msg-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .msg-label{font-size:.72rem;font-weight:600;color:#8aa890;text-transform:uppercase;letter-spacing:.05em}
+  .msg.usr .msg-label{text-align:right}
+  .msg-bub{padding:14px 18px;border-radius:20px;font-size:.925rem;line-height:1.65;word-wrap:break-word}
+  .msg.ai .msg-bub{background:#fff;border:1px solid #d8e8da;border-top-left-radius:8px}
+  .msg.usr .msg-bub{background:#d4f0dc;border:1px solid rgba(45,154,78,.15);border-top-right-radius:8px}
+  .msg-bub strong{color:#2d9a4e}
+
+  /* Welcome */
+  .welcome{text-align:center;padding:80px 20px 40px;animation:up .5s}
+  .w-icon{width:72px;height:72px;margin:0 auto 24px;background:#d4f0dc;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:36px}
+  .welcome h2{font-family:Georgia,serif;font-size:1.6rem;font-weight:500;margin-bottom:8px}
+  .welcome p{color:#4a6b52;font-size:.875rem;max-width:440px;margin:0 auto;line-height:1.6}
+
+  /* Typing */
+  .typing{display:flex;gap:5px;padding:14px 18px;background:#fff;border:1px solid #d8e8da;border-top-left-radius:8px;border-radius:20px;align-self:flex-start}
+  .typing span{width:7px;height:7px;background:#3cb860;border-radius:50%;animation:bounce 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.15s}
+  .typing span:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+  /* Input */
+  .input-area{padding:16px 28px 20px;border-top:1px solid #d8e8da;background:#edf5ef;flex-shrink:0}
+  .input-wrap{max-width:780px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;background:#f9fcf9;border:1px solid #d8e8da;border-radius:20px;padding:8px 10px 8px 18px}
+  .input-wrap:focus-within{border-color:#3cb860;box-shadow:0 0 0 3px rgba(45,154,78,.1)}
+  .chat-input{flex:1;background:none;border:none;color:#1a2e1f;font:inherit;font-size:.925rem;resize:none;outline:none;line-height:1.5;max-height:150px;padding:4px 0}
+  .chat-input::placeholder{color:#8aa890}
+  .send-btn{width:40px;height:40px;background:#2d9a4e;border:none;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+  .send-btn:disabled{opacity:.35;cursor:not-allowed}
+  .send-btn:not(:disabled):hover{background:#3cb860}
+  .send-btn svg{width:18px;height:18px;pointer-events:none}
+  .disclaimer{text-align:center;margin-top:10px;font-size:.7rem;color:#8aa890}
+  .disclaimer span{color:#2d9a4e;font-weight:500}
+
+  /* Overlay */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.15);z-index:19}
+  .overlay.on{display:block}
+
+  /* Right Panel */
+  .rpanel{position:fixed;right:0;top:0;bottom:0;width:340px;background:#fff;border-left:1px solid #d8e8da;z-index:30;transform:translateX(100%);transition:transform .3s cubic-bezier(.25,.1,.25,1);display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.06)}
+  .rpanel.open{transform:translateX(0)}
+  .rpanel-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #d8e8da;flex-shrink:0}
+  .rpanel-title{font-family:Georgia,serif;font-size:1.1rem;font-weight:600}
+  .rpanel-close{width:32px;height:32px;background:none;border:1px solid #d8e8da;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#8aa890}
+  .rpanel-close:hover{background:#fce4e4;color:#c53030;border-color:#fce4e4}
+  .rpanel-body{flex:1;overflow-y:auto;padding:20px 24px}
+
+  /* Profile */
+  .prof-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#2d9a4e,#3cb860);display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700;margin:0 auto 16px}
+  .prof-name{text-align:center;font-family:Georgia,serif;font-size:1.2rem;font-weight:600;margin-bottom:2px}
+  .prof-email{text-align:center;font-size:.8rem;color:#8aa890;margin-bottom:16px}
+  .prof-edit-wrap{text-align:center;margin-bottom:20px}
+  .chip-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;background:#d4f0dc;border:none;border-radius:20px;font:inherit;font-size:.75rem;color:#2d9a4e;font-weight:500;cursor:pointer}
+  .chip-btn:hover{background:#c8ecce}
+
+  .section{margin-bottom:20px}
+  .section-label{font-size:.7rem;font-weight:600;color:#8aa890;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .info-row{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f9fcf9;border:1px solid #e2efe4;border-radius:10px;margin-bottom:6px;font-size:.85rem}
+  .info-row span:first-child{color:#4a6b52;flex-shrink:0}
+  .info-val{flex:1;text-align:right;color:#1a2e1f;font-weight:500}
+  .edit-link{color:#2d9a4e;font-size:.75rem;cursor:pointer;font-weight:500;background:none;border:none;font:inherit;flex-shrink:0}
+  .edit-link:hover{text-decoration:underline}
+
+  /* Settings */
+  .set-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+  .set-label{font-size:.875rem;color:#1a2e1f}
+  .set-desc{font-size:.75rem;color:#8aa890;margin-top:2px}
+  .set-select{padding:8px 12px;border:1px solid #d8e8da;border-radius:8px;font:inherit;font-size:.825rem;color:#1a2e1f;background:#f9fcf9;cursor:pointer;outline:none}
+  .set-select:focus{border-color:#3cb860}
+  .toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+  .toggle input{display:none}
+  .toggle .track{position:absolute;inset:0;background:#d8e8da;border-radius:12px;cursor:pointer;transition:background .2s}
+  .toggle input:checked+.track{background:#2d9a4e}
+  .toggle .thumb{position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+  .toggle input:checked+.track .thumb{transform:translateX(20px)}
+  .btn-danger{width:100%;padding:10px 16px;background:none;border:1px solid #e8d0d0;border-radius:10px;color:#c53030;font:inherit;font-size:.825rem;cursor:pointer;text-align:center;margin-top:8px}
+  .btn-danger:hover{background:#fce4e4}
+  .about-text{font-size:.8rem;color:#8aa890;line-height:1.6}
+  .about-text strong{color:#1a2e1f}
+
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:31}
+  .modal-overlay.show{display:block}
+  .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);background:#fff;border:1px solid #d8e8da;border-radius:20px;padding:28px;z-index:32;width:380px;max-width:90vw;opacity:0;pointer-events:none;transition:all .25s;box-shadow:0 16px 48px rgba(0,0,0,.12)}
+  .modal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .modal-title{font-family:Georgia,serif;font-size:1.1rem;margin-bottom:6px}
+  .modal-desc{font-size:.8rem;color:#8aa890;margin-bottom:16px}
+  .modal-input{width:100%;padding:10px 14px;border:1px solid #d8e8da;border-radius:10px;font:inherit;font-size:.9rem;outline:none;margin-bottom:16px}
+  .modal-input:focus{border-color:#3cb860}
+  .modal-btns{display:flex;gap:8px;justify-content:flex-end}
+  .btn-cancel{padding:10px 20px;background:none;border:1px solid #d8e8da;border-radius:10px;font:inherit;font-size:.85rem;cursor:pointer;color:#4a6b52}
+  .btn-save{padding:10px 20px;background:#2d9a4e;border:none;border-radius:10px;font:inherit;font-size:.85rem;cursor:pointer;color:#fff}
+  .btn-save:hover{background:#3cb860}
+
+  /* Toast */
+  .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #d8e8da;padding:10px 22px;border-radius:28px;font-size:.825rem;z-index:100;opacity:0;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.06);transition:opacity .3s}
+  .toast.show{opacity:1}
+
+  /* Scroll */
+  .scroll-btn{position:absolute;bottom:100px;right:40px;width:36px;height:36px;background:#fff;border:1px solid #d8e8da;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#4a6b52;opacity:0;pointer-events:none;z-index:5;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+  .scroll-btn.show{opacity:1;pointer-events:auto}
+  .scroll-btn:hover{background:#d4f0dc;color:#2d9a4e}
+
+  @media(max-width:768px){
+    .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%)}
+    .sidebar.open{transform:translateX(0)}
+    .overlay.on{display:block}
+    .rpanel{width:100%}
+    .mbtn{display:flex}
+    .msgs{padding:16px}
+    .input-area{padding:12px 16px 16px}
+    .msg{max-width:100%}
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sbar">
+  <div class="sidebar-header">
+    <a class="logo" href="#" onclick="mcReset();return false">
+      <div class="logo-icon">🩺</div>
+      <div><div class="logo-text">MediChat</div><div class="logo-sub">AI Health Assistant</div></div>
+    </a>
+  </div>
+  <div class="s-actions">
+    <button class="btn-nc" onclick="mcNew()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Conversation
+    </button>
+  </div>
+  <div class="conv-list" id="convList"></div>
+  <div class="s-footer">
+    <div class="s-footer-user" onclick="mcOpenProfile()">
+      <div class="s-footer-avatar" id="smallAvatar">U</div>
+      <div class="s-footer-info">
+        <div class="s-footer-name" id="smallName">Dr. User</div>
+        <div class="s-footer-role">Physician</div>
+      </div>
+      <div class="s-footer-badge"></div>
+    </div>
+  </div>
+</aside>
+
+<div class="overlay" id="overlay" onclick="mcCloseAll()"></div>
+
+<main class="main">
+  <header class="chat-header">
+    <div class="hl">
+      <button class="mbtn" id="mbtn" onclick="mcToggleSide()">☰</button>
+      <span class="htitle" id="htitle">New Conversation</span>
+    </div>
+    <div class="hr">
+      <button class="hbtn" onclick="mcReset()" title="Clear chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 15A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 9"/></svg>
+      </button>
+      <button class="hbtn" onclick="mcOpenSettings()" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+      <button class="hbtn" onclick="mcOpenProfile()" title="Profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="msgs" id="msgs"></div>
+
+  <button class="scroll-btn" id="scrollBtn" onclick="mcScroll()">↓</button>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea class="chat-input" id="chatInput" placeholder="Type your health question..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();mcSend()}"
+        oninput="mcOnInput()"></textarea>
+      <button class="send-btn" id="sendBtn" disabled onclick="mcSend()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <p class="disclaimer" id="disclaimer">⚕️ This assistant provides informational content only — <span>not a substitute for professional medical diagnosis</span>. In an emergency, call 911.</p>
+  </div>
+</main>
+
+<!-- Profile Panel -->
+<div class="rpanel" id="profPanel">
+  <div class="rpanel-header">
+    <span class="rpanel-title">Profile</span>
+    <button class="rpanel-close" onclick="mcCloseProfile()">&times;</button>
+  </div>
+  <div class="rpanel-body">
+    <div class="prof-avatar" id="profAvatar">U</div>
+    <div class="prof-name" id="profName">Dr. User</div>
+    <div class="prof-email" id="profEmail">physician@hospital.com</div>
+    <div class="prof-edit-wrap"><button class="chip-btn" onclick="mcEditProfile()">✎ Edit Profile</button></div>
+    <div class="section">
+      <div class="section-label">Personal Information</div>
+      <div class="info-row"><span>Name</span><span class="info-val" id="fieldName">Dr. User</span><button class="edit-link" onclick="mcEditField('name')">Edit</button></div>
+      <div class="info-row"><span>Email</span><span class="info-val" id="fieldEmail">physician@hospital.com</span><button class="edit-link" onclick="mcEditField('email')">Edit</button></div>
+      <div class="info-row"><span>Specialty</span><span class="info-val" id="fieldSpecialty">General Medicine</span><button class="edit-link" onclick="mcEditField('specialty')">Edit</button></div>
+      <div class="info-row"><span>Institution</span><span class="info-val" id="fieldInstitution">City General Hospital</span><button class="edit-link" onclick="mcEditField('institution')">Edit</button></div>
+    </div>
+    <div class="section">
+      <div class="section-label">Account</div>
+      <div class="info-row"><span>Member since</span><span class="info-val">July 2026</span></div>
+      <div class="info-row"><span>Total conversations</span><span class="info-val" id="totalConvs">0</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div class="rpanel" id="setPanel">
+  <div class="rpanel-header">
+    <span class="rpanel-title">Settings</span>
+    <button class="rpanel-close" onclick="mcCloseSettings()">&times;</button>
+  </div>
+  <div class="rpanel-body">
+    <div class="section">
+      <div class="section-label">Appearance</div>
+      <div class="set-row">
+        <div><div class="set-label">Theme</div><div class="set-desc">Light green</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">AI Model</div>
+      <div class="set-row">
+        <div><div class="set-label">Model</div><div class="set-desc">Select the AI model for responses</div></div>
+        <select class="set-select" id="modelSelect" onchange="mcSetModel(this.value)">
+          <option value="claude">Claude (Recommended)</option>
+          <option value="gpt4">GPT-4</option>
+          <option value="local">Local LLM</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">Temperature</div><div class="set-desc">Response creativity (0-1)</div></div>
+        <select class="set-select" id="tempSelect" onchange="mcSetTemp(this.value)">
+          <option value="0.3">0.3 — Precise</option>
+          <option value="0.7" selected>0.7 — Balanced</option>
+          <option value="1.0">1.0 — Creative</option>
+        </select>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Preferences</div>
+      <div class="set-row">
+        <div><div class="set-label">Stream responses</div><div class="set-desc">Show text as it's generated</div></div>
+        <label class="toggle"><input type="checkbox" id="streamToggle" checked onchange="mcToggleStream(this.checked)"><span class="track"><span class="thumb"></span></span></label>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">Auto-save conversations</div><div class="set-desc">Save every 3 seconds</div></div>
+        <label class="toggle"><input type="checkbox" id="autoSaveToggle" checked onchange="mcToggleAutoSave(this.checked)"><span class="track"><span class="thumb"></span></span></label>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">Show disclaimer</div><div class="set-desc">Medical disclaimer below input</div></div>
+        <label class="toggle"><input type="checkbox" id="disclaimerToggle" checked onchange="mcToggleDisclaimer(this.checked)"><span class="track"><span class="thumb"></span></span></label>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Privacy & Data</div>
+      <div class="set-row">
+        <div><div class="set-label">Share usage data</div><div class="set-desc">Help improve MediChat</div></div>
+        <label class="toggle"><input type="checkbox" id="dataToggle" onchange="mcToggleData(this.checked)"><span class="track"><span class="thumb"></span></span></label>
+      </div>
+      <button class="btn-danger" onclick="mcClearAllData()">Clear All Conversation Data</button>
+    </div>
+    <div class="section">
+      <div class="section-label">About</div>
+      <div class="about-text"><strong>MediChat v1.0</strong><br>AI-powered medical assistant for healthcare professionals.<br>Built with ❤️ for better patient care.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editOverlay" onclick="mcCloseEdit()"></div>
+<div class="modal" id="editModal">
+  <h3 class="modal-title" id="editModalTitle">Edit Field</h3>
+  <p class="modal-desc">Update your profile information</p>
+  <input class="modal-input" id="editModalInput" placeholder="Enter value...">
+  <div class="modal-btns">
+    <button class="btn-cancel" onclick="mcCloseEdit()">Cancel</button>
+    <button class="btn-save" onclick="mcSaveEdit()">Save</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ────── GLOBAL STATE ──────
+var _d = {};    // all conversations
+var _c = null;  // active conversation id
+var _b = false; // busy flag
+
+// Profile
+var _p = { name:'Dr. User', initials:'U', email:'physician@hospital.com', specialty:'General Medicine', institution:'City General Hospital' };
+
+// Settings
+var _s = { theme:'light', model:'claude', temperature:'0.7', stream:true, autoSave:true, disclaimer:true, shareData:false };
+
+// Edit
+var _ef = null;
+
+// ────── HELPERS ──────
+function _esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function _fmt(t){return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>')}
+function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function _E(id){return document.getElementById(id)}
+
+function _save(){try{localStorage.setItem('mcf_data',JSON.stringify(_d))}catch(e){}}
+function _saveCfg(){try{localStorage.setItem('mcf_prof',JSON.stringify(_p));localStorage.setItem('mcf_set',JSON.stringify(_s))}catch(e){}}
+function _load(){
+  try{var r=localStorage.getItem('mcf_data');_d=r?JSON.parse(r):{};_c=localStorage.getItem('mcf_act');if(_c&&!_d[_c])_c=null}catch(e){_d={};_c=null}
+  try{var p=localStorage.getItem('mcf_prof');if(p)Object.assign(_p,JSON.parse(p))}catch(e){}
+  try{var s=localStorage.getItem('mcf_set');if(s)Object.assign(_s,JSON.parse(s))}catch(e){}
+}
+
+// ────── RENDER ──────
+function _renderSide(){
+  var ids=Object.keys(_d).sort(function(a,b){return _d[b].ts-_d[a].ts});
+  var list=_E('convList');
+  if(ids.length===0){list.innerHTML='<div class="empty">No conversations yet</div>';return}
+  var h='';
+  for(var i=0;i<ids.length;i++){
+    var id=ids[i],c=_d[id],cls=(id===_c)?'conv-item act':'conv-item';
+    h+='<div class="'+cls+'" onclick="mcOpen(\''+id+'\')"><div class="conv-dot"></div><span class="conv-title">'+_esc(c.title)+'</span><button class="conv-del" onclick="event.stopPropagation();mcDel(\''+id+'\')">&times;</button></div>';
+  }
+  list.innerHTML=h;
+}
+
+function _renderProfile(){
+  _E('smallName').textContent=_p.name;
+  _E('smallAvatar').textContent=_p.initials;
+  _E('profName').textContent=_p.name;
+  _E('profEmail').textContent=_p.email;
+  _E('profAvatar').textContent=_p.initials;
+  _E('fieldName').textContent=_p.name;
+  _E('fieldEmail').textContent=_p.email;
+  _E('fieldSpecialty').textContent=_p.specialty;
+  _E('fieldInstitution').textContent=_p.institution;
+  _E('totalConvs').textContent=Object.keys(_d).length;
+}
+
+function _showWelcome(){
+  _E('msgs').innerHTML='<div class="welcome"><div class="w-icon">🩺</div><h2>Hello, I\'m your AI health assistant</h2><p>Ask me anything about symptoms, lab results, medications, or general health. I\'m here to provide information — not a substitute for professional medical advice.</p></div>';
+  _E('htitle').textContent='New Conversation';
+}
+
+function _msgHTML(m){
+  var av=m.role==='user'?_p.initials:'🩺';
+  var lb=m.role==='user'?_p.name:'MediChat';
+  var rc=m.role==='user'?'usr':'ai';
+  return '<div class="msg '+rc+'"><div class="msg-av">'+av+'</div><div class="msg-body"><span class="msg-label">'+lb+'</span><div class="msg-bub">'+_fmt(m.content)+'</div></div></div>';
+}
+
+function _addMsg(m){
+  var d=document.createElement('div');
+  d.innerHTML=_msgHTML(m);
+  _E('msgs').appendChild(d.firstElementChild);
+}
+
+function _showTyping(){
+  var d=document.createElement('div');
+  d.className='msg ai';d.id='_typing';
+  d.innerHTML='<div class="msg-av">🩺</div><div class="msg-body"><span class="msg-label">MediChat</span><div class="typing"><span></span><span></span><span></span></div></div>';
+  _E('msgs').appendChild(d);return d;
+}
+
+function _hideTyping(el){if(el&&el.parentNode)el.parentNode.removeChild(el)}
+
+// ────── AI CALL (placeholder) ──────
+function _callAI(userMsg,cb){
+  setTimeout(function(){
+    cb('Thanks for your question about *"'+_esc(userMsg)+'"*.\n\nThis is a placeholder response using the **'+_s.model+'** model (temp: '+_s.temperature+'). The medical AI backend will be integrated here to provide evidence-based answers to your health questions.\n\n**Next steps:** Locate the `_callAI` function and replace it with your API integration.');
+  },800+Math.random()*1200);
+}
+
+// ────── PUBLIC FUNCTIONS ──────
+
+function mcOpen(id){
+  _c=id;localStorage.setItem('mcf_act',id);
+  var c=_d[id];_E('htitle').textContent=c.title;
+  if(c.msgs.length===0){_showWelcome()}else{
+    var h='';for(var i=0;i<c.msgs.length;i++)h+=_msgHTML(c.msgs[i]);
+    _E('msgs').innerHTML=h;
+  }
+  mcScroll();_renderSide();mcUpdSend();
+}
+
+function mcNew(){
+  if(_b)return;
+  var id=_uid();_d[id]={title:'New Conversation',msgs:[],ts:Date.now()};
+  _save();mcOpen(id);mcCloseSide();
+}
+
+function mcDel(id){
+  if(_b&&_c===id)return;
+  delete _d[id];
+  if(_c===id){_c=null;var rem=Object.keys(_d);if(rem.length>0){mcOpen(rem[0])}else{_showWelcome();_E('htitle').textContent='New Conversation'}}
+  _save();_renderSide();mcToast('Conversation deleted');
+}
+
+function mcReset(){
+  if(_b)return;
+  if(_c&&_d[_c]){_d[_c].msgs=[];_d[_c].title='New Conversation';_save();mcOpen(_c)}
+}
+
+function mcSend(){
+  // FIX: re-check busy right before acting
+  if(_b){ console.log('mcSend blocked — busy'); return; }
+  var inp=_E('chatInput');var text=inp.value.trim();
+  if(!text){ console.log('mcSend blocked — empty'); return; }
+  if(!_c||!_d[_c]){ console.log('mcSend: no active conv, creating'); mcNew(); }
+  var conv=_d[_c];if(!conv){ console.log('mcSend blocked — still no conv'); return; }
+  _b=true; // lock early
+  console.log('mcSend: sending "'+text+'"');
+  var w=_E('msgs').querySelector('.welcome');if(w)w.style.display='none';
+  if(conv.msgs.length===0){conv.title=text.length>32?text.slice(0,32)+'…':text;_E('htitle').textContent=conv.title}
+  conv.msgs.push({role:'user',content:text});_addMsg({role:'user',content:text});
+  inp.value='';mcOnInput();_save();_renderSide();mcScroll();
+  mcUpdSend();
+  var typingEl=_showTyping();mcScroll();
+  _callAI(text,function(reply){
+    _hideTyping(typingEl);conv.msgs.push({role:'assistant',content:reply});
+    _addMsg({role:'assistant',content:reply});
+    _b=false;_save();mcUpdSend();mcScroll();
+  });
+}
+
+// ────── UI ──────
+function mcOnInput(){var inp=_E('chatInput');inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,150)+'px';mcUpdSend()}
+function mcUpdSend(){_E('sendBtn').disabled=_b||!_E('chatInput').value.trim()}
+function mcScroll(){var m=_E('msgs');requestAnimationFrame(function(){m.scrollTop=m.scrollHeight})}
+function mcToggleSide(){_E('sbar').classList.toggle('open');_E('overlay').classList.toggle('on')}
+function mcCloseSide(){_E('sbar').classList.remove('open');_E('overlay').classList.remove('on')}
+
+// ────── PANELS ──────
+function mcOpenProfile(){
+  _renderProfile();
+  _E('profPanel').classList.add('open');_E('overlay').classList.add('on');
+}
+function mcCloseProfile(){_E('profPanel').classList.remove('open');_E('overlay').classList.remove('on')}
+function mcOpenSettings(){
+  // Sync dropdowns to current settings
+  _E('modelSelect').value=_s.model;
+  _E('tempSelect').value=_s.temperature;
+  _E('streamToggle').checked=_s.stream;
+  _E('autoSaveToggle').checked=_s.autoSave;
+  _E('disclaimerToggle').checked=_s.disclaimer;
+  _E('dataToggle').checked=_s.shareData;
+  _E('setPanel').classList.add('open');_E('overlay').classList.add('on');
+}
+function mcCloseSettings(){_E('setPanel').classList.remove('open');_E('overlay').classList.remove('on')}
+function mcCloseAll(){
+  mcCloseSide();mcCloseProfile();mcCloseSettings();mcCloseEdit();
+}
+
+// ────── PROFILE EDIT ──────
+function mcEditField(field){
+  _ef=field;_E('editModalTitle').textContent='Edit '+field.charAt(0).toUpperCase()+field.slice(1);
+  _E('editModalInput').value=_p[field]||'';
+  _E('editModal').classList.add('open');_E('editOverlay').classList.add('show');
+  _E('editModalInput').focus();
+}
+function mcEditProfile(){mcEditField('name')}
+function mcCloseEdit(){_E('editModal').classList.remove('open');_E('editOverlay').classList.remove('show');_ef=null}
+function mcSaveEdit(){
+  var val=_E('editModalInput').value.trim();if(!val)return;
+  _p[_ef]=val;
+  if(_ef==='name')_p.initials=val.split(' ').map(function(w){return w[0]}).join('').toUpperCase().slice(0,2);
+  _saveCfg();_renderProfile();mcCloseEdit();mcToast('Profile updated');
+}
+
+// ────── SETTINGS ──────
+function _applyTheme(ignored){
+  // Only light green theme
+}
+
+function mcSetTheme(v){
+  // Theme locked to light green
+  mcToast('Theme: Light Green');
+}
+function mcSetModel(v){_s.model=v;_saveCfg();mcToast('Model: '+v)}
+function mcSetTemp(v){_s.temperature=v;_saveCfg();mcToast('Temperature: '+v)}
+function mcToggleStream(v){_s.stream=v;_saveCfg();mcToast('Stream: '+(v?'On':'Off'))}
+function mcToggleAutoSave(v){_s.autoSave=v;_saveCfg();mcToast('Auto-save: '+(v?'On':'Off'))}
+function mcToggleDisclaimer(v){_s.disclaimer=v;_saveCfg();_E('disclaimer').style.display=v?'':'none';mcToast('Disclaimer: '+(v?'On':'Off'))}
+function mcToggleData(v){_s.shareData=v;_saveCfg();mcToast('Data sharing: '+(v?'On':'Off'))}
+function mcClearAllData(){
+  if(!confirm('Delete all conversation data? This cannot be undone.'))return;
+  _d={};_c=null;localStorage.removeItem('mcf_data');localStorage.removeItem('mcf_act');
+  _renderSide();_showWelcome();mcCloseSettings();mcToast('All data cleared');
+}
+
+// ────── TOAST ──────
+function mcToast(msg){
+  var t=_E('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._tid);t._tid=setTimeout(function(){t.classList.remove('show')},2000);
+}
+
+// ────── INIT ──────
+(function(){
+  _E('msgs').addEventListener('scroll',function(){
+    var d=this.scrollHeight-this.scrollTop-this.clientHeight;
+    _E('scrollBtn').classList.toggle('show',d>200);
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')mcCloseAll()});
+  setInterval(function(){if(_c&&_s.autoSave)_save()},3000);
+
+  _load();_renderSide();_renderProfile();
+  if(_c&&_d[_c]){mcOpen(_c)}
+  else if(Object.keys(_d).length>0){mcOpen(Object.keys(_d)[0])}
+  else{_showWelcome()}
+  mcUpdSend();
+
+  // Apply saved settings
+  if(!_s.disclaimer)_E('disclaimer').style.display='none';
+  _applyTheme(_s.theme==='dark');
+
+  console.log('MediChat ready');
+})();
+</script>
+</body>
+</html>
