@@ -95,6 +95,18 @@
   .disclaimer{text-align:center;margin-top:10px;font-size:.7rem;color:#8aa890}
   .disclaimer span{color:#2d9a4e;font-weight:500}
 
+  /* Attach */
+  .attach-btn{width:40px;height:40px;background:none;border:none;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#4a6b52;transition:background .2s,color .2s}
+  .attach-btn:hover{background:#d4f0dc;color:#2d9a4e}
+  .attach-btn svg{width:20px;height:20px;pointer-events:none}
+  .file-list{max-width:780px;margin:0 auto;display:flex;flex-wrap:wrap;gap:6px;padding-top:8px}
+  .file-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;background:#fff;border:1px solid #d8e8da;border-radius:8px;font-size:.78rem;color:#1a2e1f;max-width:220px}
+  .file-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .file-chip-size{color:#8aa890;font-size:.7rem;flex-shrink:0}
+  .file-chip-del{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:4px;cursor:pointer;color:#8aa890;font-size:.85rem;padding:0;flex-shrink:0;line-height:1}
+  .file-chip-del:hover{background:#fce4e4;color:#c53030}
+  .file-error{max-width:780px;margin:0 auto;font-size:.75rem;color:#c53030;padding-top:6px}
+
   /* Overlay */
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.15);z-index:19}
   .overlay.on{display:block}
@@ -230,7 +242,11 @@
   <button class="scroll-btn" id="scrollBtn" onclick="mcScroll()">↓</button>
 
   <div class="input-area">
+    <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.txt" style="display:none" onchange="mcOnFiles(event)">
     <div class="input-wrap">
+      <button class="attach-btn" id="attachBtn" title="Attach files" onclick="_E('fileInput').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
       <textarea class="chat-input" id="chatInput" placeholder="Type your health question..." rows="1"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();mcSend()}"
         oninput="mcOnInput()"></textarea>
@@ -238,6 +254,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>
+    <div class="file-list" id="fileList"></div>
+    <div class="file-error" id="fileError"></div>
     <p class="disclaimer" id="disclaimer">⚕️ This assistant provides informational content only — <span>not a substitute for professional medical diagnosis</span>. In an emergency, call 911.</p>
   </div>
 </main>
@@ -475,7 +493,7 @@ function mcSend(){
   var w=_E('msgs').querySelector('.welcome');if(w)w.style.display='none';
   if(conv.msgs.length===0){conv.title=text.length>32?text.slice(0,32)+'…':text;_E('htitle').textContent=conv.title}
   conv.msgs.push({role:'user',content:text});_addMsg({role:'user',content:text});
-  inp.value='';mcOnInput();_save();_renderSide();mcScroll();
+  inp.value='';mcOnInput();mcClearFiles();_save();_renderSide();mcScroll();
   mcUpdSend();
   var typingEl=_showTyping();mcScroll();
   _callAI(text,function(reply){
@@ -554,6 +572,54 @@ function mcClearAllData(){
 function mcToast(msg){
   var t=_E('toast');t.textContent=msg;t.classList.add('show');
   clearTimeout(t._tid);t._tid=setTimeout(function(){t.classList.remove('show')},2000);
+}
+
+// ────── FILES ──────
+var _files = [];
+var _FILE_MAX = 10 * 1024 * 1024;
+var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'text/plain':1};
+
+function _fmtSize(bytes){
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1048576) return (bytes/1024).toFixed(1)+' KB';
+  return (bytes/1048576).toFixed(1)+' MB';
+}
+
+function mcOnFiles(e){
+  var errEl=_E('fileError');errEl.textContent='';
+  var incoming=Array.prototype.slice.call(e.target.files);
+  for(var i=0;i<incoming.length;i++){
+    var f=incoming[i];
+    if(!_FILE_TYPES[f.type]){errEl.textContent='Unsupported file type: '+f.name;return}
+    if(f.size>_FILE_MAX){errEl.textContent='File too large (max 10 MB): '+f.name;return}
+    var dup=false;
+    for(var j=0;j<_files.length;j++){if(_files[j].name===f.name&&_files[j].size===f.size){dup=true;break}}
+    if(!dup) _files.push(f);
+  }
+  e.target.value='';
+  _renderFiles();
+}
+
+function mcRemoveFile(idx){
+  _files.splice(idx,1);
+  _E('fileError').textContent='';
+  _renderFiles();
+}
+
+function _renderFiles(){
+  var el=_E('fileList');
+  if(_files.length===0){el.innerHTML='';return}
+  var h='';
+  for(var i=0;i<_files.length;i++){
+    h+='<div class="file-chip"><span class="file-chip-name">'+_esc(_files[i].name)+'</span><span class="file-chip-size">'+_fmtSize(_files[i].size)+'</span><button class="file-chip-del" onclick="mcRemoveFile('+i+')" title="Remove">&times;</button></div>';
+  }
+  el.innerHTML=h;
+}
+
+function mcClearFiles(){
+  _files=[];
+  _E('fileError').textContent='';
+  _renderFiles();
 }
 
 // ────── INIT ──────
