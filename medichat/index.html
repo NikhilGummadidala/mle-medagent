@@ -106,6 +106,20 @@
   .file-chip-del{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:4px;cursor:pointer;color:#8aa890;font-size:.85rem;padding:0;flex-shrink:0;line-height:1}
   .file-chip-del:hover{background:#fce4e4;color:#c53030}
   .file-error{max-width:780px;margin:0 auto;font-size:.75rem;color:#c53030;padding-top:6px}
+  .agent-steps{max-width:780px;margin:12px auto 0;display:flex;flex-direction:column;gap:6px}
+  .agent-step{background:#fff;border:1px solid #d8e8da;border-radius:10px;overflow:hidden}
+  .agent-step-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:500;color:#4a6b52}
+  .agent-step-header:hover{background:#f6faf7}
+  .agent-step-arrow{transition:transform .2s;font-size:.7rem}
+  .agent-step.open .agent-step-arrow{transform:rotate(90deg)}
+  .agent-step-body{display:none;padding:0 14px 10px;font-size:.82rem;line-height:1.6;color:#1a2e1f}
+  .agent-step.open .agent-step-body{display:block}
+  .disclaimer-card{max-width:780px;margin:12px auto 0;padding:12px 16px;background:#fff8f0;border:1px solid #f0d8b8;border-radius:10px;font-size:.78rem;color:#8b6914;line-height:1.5}
+  .heart-rate-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .heart-rate-input{width:90px;padding:6px 10px;border:1px solid #d8e8da;border-radius:10px;font:inherit;font-size:.825rem;background:#f9fcf9;outline:none;color:#1a2e1f}
+  .heart-rate-input:focus{border-color:#3cb860;box-shadow:0 0 0 2px rgba(45,154,78,.1)}
+  .heart-rate-input::placeholder{color:#8aa890}
+  .hr-label{font-size:.7rem;color:#8aa890;white-space:nowrap}
 
   /* Overlay */
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.15);z-index:19}
@@ -242,11 +256,14 @@
   <button class="scroll-btn" id="scrollBtn" onclick="mcScroll()">↓</button>
 
   <div class="input-area">
-    <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.txt" style="display:none" onchange="mcOnFiles(event)">
+    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.pdf,.txt" style="display:none" onchange="mcOnFiles(event)">
     <div class="input-wrap">
       <button class="attach-btn" id="attachBtn" title="Attach files" onclick="_E('fileInput').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
       </button>
+      <div class="heart-rate-wrap">
+        <input type="number" class="heart-rate-input" id="heartRateInput" placeholder="BPM" min="30" max="250" title="Heart rate (BPM)">
+      </div>
       <textarea class="chat-input" id="chatInput" placeholder="Type your health question..." rows="1"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();mcSend()}"
         oninput="mcOnInput()"></textarea>
@@ -367,12 +384,13 @@
 var _d = {};    // all conversations
 var _c = null;  // active conversation id
 var _b = false; // busy flag
+var _apiBase = ''; // Same origin — FastAPI serves both API and frontend
 
 // Profile
 var _p = { name:'Dr. User', initials:'U', email:'physician@hospital.com', specialty:'General Medicine', institution:'City General Hospital' };
 
 // Settings
-var _s = { theme:'light', model:'claude', temperature:'0.7', stream:true, autoSave:true, disclaimer:true, shareData:false };
+var _s = { theme:'light', model:'local', temperature:'0.3', stream:false, autoSave:true, disclaimer:true, shareData:false };
 
 // Edit
 var _ef = null;
@@ -444,11 +462,50 @@ function _showTyping(){
 
 function _hideTyping(el){if(el&&el.parentNode)el.parentNode.removeChild(el)}
 
-// ────── AI CALL (placeholder) ──────
-function _callAI(userMsg,cb){
-  setTimeout(function(){
-    cb('Thanks for your question about *"'+_esc(userMsg)+'"*.\n\nThis is a placeholder response using the **'+_s.model+'** model (temp: '+_s.temperature+'). The medical AI backend will be integrated here to provide evidence-based answers to your health questions.\n\n**Next steps:** Locate the `_callAI` function and replace it with your API integration.');
-  },800+Math.random()*1200);
+// ────── AI CALL (real API integration) ──────
+function _callAI(userMsg, files, heartRate, convId, cb){
+  // Step 1: Upload files if present, then send chat request
+  var uploadPromises = (files || []).map(function(f){
+    var fd = new FormData();
+    fd.append('file', f);
+    return fetch(_apiBase + '/api/upload', { method:'POST', body: fd })
+      .then(function(r){
+        if(!r.ok) throw new Error('Upload failed: ' + f.name);
+        return r.json();
+      });
+  });
+
+  Promise.all(uploadPromises).then(function(uploads){
+    // Determine file paths from upload results
+    var breastPath = null, skinPath = null;
+    uploads.forEach(function(u){
+      var name = (u.file_path || '').toLowerCase();
+      var fname = name.split(/[/\\]/).pop();
+      if(fname.indexOf('breast') !== -1 || fname.indexOf('mamm') !== -1){
+        breastPath = u.file_path;
+      } else {
+        skinPath = u.file_path;
+      }
+    });
+
+    // Build form data for the chat request
+    var fd = new FormData();
+    fd.append('message', userMsg);
+    fd.append('conversation_id', convId);
+    if(heartRate) fd.append('heart_rate', heartRate);
+    if(breastPath) fd.append('breast_scan_path', breastPath);
+    if(skinPath) fd.append('skin_photo_path', skinPath);
+
+    return fetch(_apiBase + '/api/chat', { method:'POST', body: fd });
+  }).then(function(r){
+    if(!r.ok) throw new Error('Chat request failed');
+    return r.json();
+  }).then(function(data){
+    cb(data.reply, data.messages || [], data.disclaimer || '');
+  }).catch(function(err){
+    console.error('API Error:', err);
+    cb('Error connecting to backend: ' + err.message + '\n\nMake sure the FastAPI server is running on ' + _apiBase, [], '');
+  });
 }
 
 // ────── PUBLIC FUNCTIONS ──────
@@ -465,8 +522,17 @@ function mcOpen(id){
 
 function mcNew(){
   if(_b)return;
-  var id=_uid();_d[id]={title:'New Conversation',msgs:[],ts:Date.now()};
-  _save();mcOpen(id);mcCloseSide();
+  var id=_uid();
+  // Create a backend conversation
+  fetch(_apiBase+'/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'}})
+    .then(function(r){return r.json()})
+    .then(function(data){
+      _d[id]={title:'New Conversation',msgs:[],ts:Date.now(),convId:data.conversation_id};
+      _save();mcOpen(id);mcCloseSide();
+    }).catch(function(){
+      _d[id]={title:'New Conversation',msgs:[],ts:Date.now(),convId:id};
+      _save();mcOpen(id);mcCloseSide();
+    });
 }
 
 function mcDel(id){
@@ -482,23 +548,55 @@ function mcReset(){
 }
 
 function mcSend(){
-  // FIX: re-check busy right before acting
-  if(_b){ console.log('mcSend blocked — busy'); return; }
+  if(_b){ return; }
   var inp=_E('chatInput');var text=inp.value.trim();
-  if(!text){ console.log('mcSend blocked — empty'); return; }
-  if(!_c||!_d[_c]){ console.log('mcSend: no active conv, creating'); mcNew(); }
-  var conv=_d[_c];if(!conv){ console.log('mcSend blocked — still no conv'); return; }
-  _b=true; // lock early
-  console.log('mcSend: sending "'+text+'"');
+  if(!text){ return; }
+  if(!_c||!_d[_c]){ mcNew(); }
+  var conv=_d[_c];if(!conv){ return; }
+  _b=true;
   var w=_E('msgs').querySelector('.welcome');if(w)w.style.display='none';
   if(conv.msgs.length===0){conv.title=text.length>32?text.slice(0,32)+'…':text;_E('htitle').textContent=conv.title}
   conv.msgs.push({role:'user',content:text});_addMsg({role:'user',content:text});
-  inp.value='';mcOnInput();mcClearFiles();_save();_renderSide();mcScroll();
+  // Gather inputs
+  var hr=_E('heartRateInput').value?parseInt(_E('heartRateInput').value):null;
+  var attachedFiles=_files.slice(); // copy
+  inp.value='';_E('heartRateInput').value='';mcOnInput();mcClearFiles();_save();_renderSide();mcScroll();
   mcUpdSend();
   var typingEl=_showTyping();mcScroll();
-  _callAI(text,function(reply){
-    _hideTyping(typingEl);conv.msgs.push({role:'assistant',content:reply});
+  // Remove existing agent steps
+  var oldSteps=_E('msgs').querySelectorAll('.agent-steps,.disclaimer-card');
+  for(var i=0;i<oldSteps.length;i++) oldSteps[i].remove();
+  _callAI(text,attachedFiles,hr,conv.convId||_c,function(reply,steps,disclaimer){
+    _hideTyping(typingEl);
+    // Show agent-by-agent steps (excluding final synthesis)
+    if(steps.length>1){
+      var stepsHtml='<div class="agent-steps">';
+      for(var j=0;j<steps.length-1;j++){
+        var s=steps[j];
+        if(s.role!=='assistant') continue;
+        var label='Agent Step '+(j+1);
+        if(s.content.indexOf('Heart Disease')!==-1) label='Heart Disease Agent';
+        else if(s.content.indexOf('Breast Cancer')!==-1) label='Breast Cancer Agent';
+        else if(s.content.indexOf('Skin Disease')!==-1) label='Skin Disease Agent';
+        else if(s.content.indexOf('Router')!==-1) label='Router';
+        else label='Agent Step '+(j+1);
+        stepsHtml+='<div class="agent-step" onclick="this.classList.toggle(\'open\')">';
+        stepsHtml+='<div class="agent-step-header"><span>'+_esc(label)+'</span><span class="agent-step-arrow">▶</span></div>';
+        stepsHtml+='<div class="agent-step-body">'+_fmt(s.content)+'</div>';
+        stepsHtml+='</div>';
+      }
+      stepsHtml+='</div>';
+      var stepsDiv=document.createElement('div');stepsDiv.innerHTML=stepsHtml;
+      _E('msgs').appendChild(stepsDiv.firstElementChild);
+    }
+    // Show the final synthesis reply
+    conv.msgs.push({role:'assistant',content:reply});
     _addMsg({role:'assistant',content:reply});
+    // Show disclaimer if present
+    if(disclaimer){
+      var dDiv=document.createElement('div');dDiv.className='disclaimer-card';dDiv.innerHTML=_fmt(disclaimer);
+      _E('msgs').appendChild(dDiv);
+    }
     _b=false;_save();mcUpdSend();mcScroll();
   });
 }
@@ -577,7 +675,7 @@ function mcToast(msg){
 // ────── FILES ──────
 var _files = [];
 var _FILE_MAX = 10 * 1024 * 1024;
-var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'text/plain':1};
+var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'image/bmp':1,'image/tiff':1,'image/webp':1,'text/plain':1};
 
 function _fmtSize(bytes){
   if(bytes<1024) return bytes+' B';

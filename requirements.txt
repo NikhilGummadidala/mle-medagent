@@ -1,0 +1,20 @@
+# Core LangGraph framework
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0
+
+# API server
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# ML model dependencies
+scikit-learn>=1.5.0
+torch>=2.4.0
+tensorflow>=2.17.0
+Pillow>=10.0.0
+
+# Utilities
+pydantic>=2.0.0
+joblib>=1.4.0
+numpy>=1.26.0
