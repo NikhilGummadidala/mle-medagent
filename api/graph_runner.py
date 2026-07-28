@@ -5,6 +5,7 @@ with MemorySaver persistence for multi-turn conversations.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -17,6 +18,8 @@ from langgraph_multi_agent import (
     CLINICAL_DISCLAIMER,
     compile_medagent_graph,
 )
+
+logger = logging.getLogger(__name__)
 
 # MemorySaver for per-session persistence
 _checkpointer = MemorySaver()
@@ -31,6 +34,21 @@ def _get_graph():
     if _graph is None:
         _graph = compile_medagent_graph(checkpointer=_checkpointer)
     return _graph
+
+
+def _check_ollama() -> None:
+    """Raise a clear error if the Ollama server is not reachable."""
+    import urllib.request
+    import urllib.error
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
+        urllib.request.urlopen(req, timeout=3)
+    except (urllib.error.URLError, ConnectionRefusedError, OSError) as e:
+        raise ConnectionError(
+            "Ollama server is not running. "
+            "Start it by running: ollama serve\n"
+            "Then make sure the model is pulled: ollama pull llama3.2"
+        ) from e
 
 
 def run_graph(
@@ -61,6 +79,8 @@ def run_graph(
     dict with keys: reply, routed_to, heart_disease, breast_cancer, skin_disease,
                      messages, disclaimer
     """
+    _check_ollama()
+
     graph = _get_graph()
 
     # Build initial state with all required fields

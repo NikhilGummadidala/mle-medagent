@@ -73,6 +73,11 @@ async def chat(
             breast_scan_path=breast_scan_path,
             skin_photo_path=skin_photo_path,
         )
+    except ConnectionError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ollama server unavailable: {e}",
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Graph execution failed: {e}")
 

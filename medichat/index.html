@@ -504,7 +504,13 @@ function _callAI(userMsg, files, heartRate, convId, cb){
     cb(data.reply, data.messages || [], data.disclaimer || '');
   }).catch(function(err){
     console.error('API Error:', err);
-    cb('Error connecting to backend: ' + err.message + '\n\nMake sure the FastAPI server is running on ' + _apiBase, [], '');
+    var msg = err.message || String(err);
+    if(msg.indexOf('Ollama') !== -1 || msg.indexOf('503') !== -1){
+      msg = 'Ollama is not running. Please start Ollama (ollama serve) and ensure llama3.2 is pulled (ollama pull llama3.2).';
+    } else if(msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1){
+      msg = 'Cannot reach the server. Make sure the FastAPI server is running on ' + (_apiBase || window.location.origin);
+    }
+    cb('⚠️ ' + msg, [], '');
   });
 }
 
