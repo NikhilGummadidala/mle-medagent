@@ -74,3 +74,31 @@ class HistoryResponse(BaseModel):
     """Full conversation history for a session."""
     conversation_id: str
     messages: list[HistoryEntry]
+
+
+# ── Auth Models ────────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    """New user registration payload."""
+    username: str = Field(..., min_length=3, max_length=32, description="Unique username")
+    password: str = Field(..., min_length=6, max_length=128, description="Password")
+
+
+class UserLogin(BaseModel):
+    """Login credentials payload."""
+    username: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    """Public user info returned to the client."""
+    id: int
+    username: str
+    created_at: str
+
+
+class TokenResponse(BaseModel):
+    """JWT token response."""
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

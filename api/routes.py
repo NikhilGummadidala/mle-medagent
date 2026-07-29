@@ -6,19 +6,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from api.schemas import (
     ChatResponse,
     DiagnosisResult,
     HistoryEntry,
     HistoryResponse,
+    TokenResponse,
     UploadResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
 )
+from api.auth import get_current_user, login_user, register_user
 from api.graph_runner import create_conversation, get_history, run_graph
 from ingestion import save_uploaded_file
 
 router = APIRouter()
+auth_router = APIRouter()
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -144,3 +150,31 @@ def history(conversation_id: str) -> HistoryResponse:
         conversation_id=conversation_id,
         messages=[HistoryEntry(**m) for m in messages],
     )
+
+
+# ── Auth Endpoints ─────────────────────────────────────────────────────────────
+
+@auth_router.post("/register", response_model=TokenResponse)
+def register(payload: UserCreate) -> TokenResponse:
+    """Register a new user account."""
+    result = register_user(payload.username, payload.password)
+    return TokenResponse(
+        access_token=result["access_token"],
+        user=UserResponse(**result["user"]),
+    )
+
+
+@auth_router.post("/login", response_model=TokenResponse)
+def login(payload: UserLogin) -> TokenResponse:
+    """Log in with username and password."""
+    result = login_user(payload.username, payload.password)
+    return TokenResponse(
+        access_token=result["access_token"],
+        user=UserResponse(**result["user"]),
+    )
+
+
+@auth_router.get("/me", response_model=UserResponse)
+def me(current_user: dict = Depends(get_current_user)) -> UserResponse:
+    """Return the current authenticated user's info."""
+    return UserResponse(**current_user)

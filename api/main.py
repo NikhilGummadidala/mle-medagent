@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import router
+from api.routes import auth_router, router
 
 app = FastAPI(
     title="MedAgent API",
@@ -34,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(auth_router, prefix="/api/auth")
 
 # Serve the frontend (medichat/) as static files
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "medichat"
