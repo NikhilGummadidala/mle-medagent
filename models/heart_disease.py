@@ -68,9 +68,16 @@ def predict(measurements: dict[str, int | float | None]) -> dict[str, Any]:
     }
 
     feature_vector = []
+    provided: list[str] = []
+    missing: list[str] = []
     for key in FEATURE_KEYS:
         val = measurements.get(key)
-        feature_vector.append(val if val is not None else DEFAULTS[key])
+        if val is not None:
+            provided.append(key)
+            feature_vector.append(val)
+        else:
+            missing.append(key)
+            feature_vector.append(DEFAULTS[key])
 
     X = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
 
@@ -88,6 +95,11 @@ def predict(measurements: dict[str, int | float | None]) -> dict[str, Any]:
             "low_risk": float(probabilities[0]),
             "high_risk": float(probabilities[1]),
         },
-        "details": f"RandomForest inference on {len(FEATURE_KEYS)} features.",
+        "details": (
+            f"RandomForest inference on {len(FEATURE_KEYS)} features "
+            f"({len(provided)} measured, {len(missing)} estimated from population defaults)."
+        ),
         "features_used": feature_vector,
+        "features_provided": provided,
+        "features_missing": missing,
     }

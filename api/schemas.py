@@ -29,6 +29,16 @@ class ChatRequest(BaseModel):
         default=None,
         description="Path/URI to a skin lesion photo (if uploaded)"
     )
+    patient_context: str | None = Field(
+        default=None,
+        description="Formatted intake summary (triage urgency, history, allergies, vitals) "
+                    "collected by the front-desk clipboard"
+    )
+    age: int | None = Field(default=None, description="Patient age in years")
+    sex: int | None = Field(default=None, description="Sex for the cardiac model: 0=female, 1=male")
+    resting_blood_pressure: int | None = Field(
+        default=None, description="Systolic blood pressure in mmHg"
+    )
 
 
 # ── Response Models ───────────────────────────────────────────────────────────

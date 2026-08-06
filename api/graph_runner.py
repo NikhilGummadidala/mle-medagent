@@ -57,6 +57,10 @@ def run_graph(
     heart_rate: int | None = None,
     breast_scan_path: str | None = None,
     skin_photo_path: str | None = None,
+    patient_context: str | None = None,
+    age: int | None = None,
+    sex: int | None = None,
+    resting_blood_pressure: int | None = None,
 ) -> dict[str, Any]:
     """
     Invoke the MedAgent graph for a given conversation.
@@ -89,6 +93,12 @@ def run_graph(
     }
     if heart_rate is not None:
         merged_measurements["max_heart_rate"] = heart_rate
+    if age is not None:
+        merged_measurements["age"] = age
+    if sex is not None:
+        merged_measurements["sex"] = sex
+    if resting_blood_pressure is not None:
+        merged_measurements["resting_blood_pressure"] = resting_blood_pressure
 
     merged_breast: dict[str, float | None] = {
         key: None for key in BREAST_CANCER_FEATURE_KEYS
@@ -99,6 +109,12 @@ def run_graph(
         "skin_photo_path": skin_photo_path,
     }
 
+    # The clipboard rides along with the first message so the router and synthesis
+    # nodes see it; raw_user_query stays the patient's own words for extraction.
+    initial_text = message
+    if patient_context:
+        initial_text = f"{patient_context}\n\n---\n\nPatient's question: {message}"
+
     state = {
         # Detailed fields
         "raw_user_query": message,
@@ -106,7 +122,7 @@ def run_graph(
         "breast_cancer_features": merged_breast,
         "file_references": file_refs,
         "next_agent": "",
-        "messages": [HumanMessage(content=message)],
+        "messages": [HumanMessage(content=initial_text)],
         "heart_disease_analysis": {},
         "breast_cancer_analysis": {},
         "skin_disease_analysis": {},
