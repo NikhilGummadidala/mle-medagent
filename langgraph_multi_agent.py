@@ -366,32 +366,70 @@ def skin_disease_node(state: MedAgentState) -> dict[str, Any]:
 # ── Heart Disease Node ────────────────────────────────────────────────────────
 
 def heart_disease_node(state: MedAgentState) -> dict[str, Any]:
-    try:
-        analysis = predict_heart_disease(state["user_measurements"])
-    except FileNotFoundError as e:
+    measurements = state["user_measurements"]
+    measured = [k for k in USER_MEASUREMENT_KEYS if measurements.get(k) is not None]
+
+    # Never score a patient we have no measurements for. Running the model on an
+    # all-default feature vector produces a confident number that describes the
+    # population default, not this patient — mirrors the skin/breast nodes.
+    if not measured:
         analysis = {
-            "diagnosis": "model unavailable",
+            "diagnosis": "insufficient data",
             "confidence": 0.0,
-            "details": str(e),
+            "details": (
+                "No cardiac measurements were provided, so no risk assessment was run. "
+                "Age, sex, blood pressure and heart rate are the minimum useful inputs."
+            ),
             "features_used": [],
+            "features_provided": [],
+            "features_missing": list(USER_MEASUREMENT_KEYS),
         }
+    else:
+        try:
+            analysis = predict_heart_disease(measurements)
+        except FileNotFoundError as e:
+            analysis = {
+                "diagnosis": "model unavailable",
+                "confidence": 0.0,
+                "details": str(e),
+                "features_used": [],
+                "features_provided": [],
+                "features_missing": list(USER_MEASUREMENT_KEYS),
+            }
 
     availability = get_available_measurements(state)
 
     # LLM natural-language explanation
     llm = ChatOllama(model=TEXT_MODEL, temperature=0)
-    llm_response = llm.invoke([
-        SystemMessage(
-            content="You are a cardiology assistant. Explain this heart disease risk "
-            "assessment in clear, patient-friendly language. Include the confidence "
-            "level and what the measurements suggest. Be concise (2-3 sentences)."
-        ),
-        HumanMessage(
-            content=f"Prediction: {analysis['diagnosis']}\n"
-            f"Confidence: {analysis['confidence']:.2f}\n"
-            f"Measurements used: {availability}"
-        ),
-    ])
+    if analysis["diagnosis"] == "insufficient data":
+        llm_response = llm.invoke([
+            SystemMessage(
+                content="You are a cardiology assistant. No cardiac measurements were "
+                "provided, so NO risk assessment was performed. Tell the patient plainly "
+                "that you cannot assess their heart risk without data, and list which "
+                "measurements would be needed. Do NOT state or imply any risk level, "
+                "probability, or confidence. Be concise (2-3 sentences)."
+            ),
+            HumanMessage(content="No cardiac measurements available for this patient."),
+        ])
+    else:
+        n_measured, n_estimated = len(analysis["features_provided"]), len(analysis["features_missing"])
+        llm_response = llm.invoke([
+            SystemMessage(
+                content="You are a cardiology assistant. Explain this heart disease risk "
+                "assessment in clear, patient-friendly language. Be concise (2-3 sentences). "
+                "Only refer to measurements listed as actually measured. If any values were "
+                "estimated from population defaults, say so explicitly and describe the "
+                "result as preliminary. Never claim a value was measured when it was estimated."
+            ),
+            HumanMessage(
+                content=f"Prediction: {analysis['diagnosis']}\n"
+                f"Confidence: {analysis['confidence']:.2f}\n"
+                f"Actually measured ({n_measured}): {', '.join(analysis['features_provided'])}\n"
+                f"Estimated from defaults ({n_estimated}): {', '.join(analysis['features_missing']) or 'none'}\n"
+                f"Measurements used: {availability}"
+            ),
+        ])
 
     return {
         "heart_disease_analysis": analysis,

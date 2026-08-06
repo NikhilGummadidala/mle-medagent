@@ -49,6 +49,10 @@ async def chat(
     heart_rate: int | None = Form(default=None),
     breast_scan_path: str | None = Form(default=None),
     skin_photo_path: str | None = Form(default=None),
+    patient_context: str | None = Form(default=None),
+    age: int | None = Form(default=None),
+    sex: int | None = Form(default=None),
+    resting_blood_pressure: int | None = Form(default=None),
     file: UploadFile | None = File(default=None),
 ) -> ChatResponse:
     """
@@ -78,6 +82,10 @@ async def chat(
             heart_rate=heart_rate,
             breast_scan_path=breast_scan_path,
             skin_photo_path=skin_photo_path,
+            patient_context=patient_context,
+            age=age,
+            sex=sex,
+            resting_blood_pressure=resting_blood_pressure,
         )
     except ConnectionError as e:
         raise HTTPException(
