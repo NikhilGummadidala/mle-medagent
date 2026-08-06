@@ -106,6 +106,16 @@
   .file-chip-del{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:4px;cursor:pointer;color:#8aa890;font-size:.85rem;padding:0;flex-shrink:0;line-height:1}
   .file-chip-del:hover{background:#fce4e4;color:#c53030}
   .file-error{max-width:780px;margin:0 auto;font-size:.75rem;color:#c53030;padding-top:6px}
+  .agent-steps{max-width:780px;margin:12px auto 0;display:flex;flex-direction:column;gap:6px}
+  .agent-step{background:#fff;border:1px solid #d8e8da;border-radius:10px;overflow:hidden}
+  .agent-step-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;cursor:pointer;user-select:none;font-size:.8rem;font-weight:500;color:#4a6b52}
+  .agent-step-header:hover{background:#f6faf7}
+  .agent-step-arrow{transition:transform .2s;font-size:.7rem}
+  .agent-step.open .agent-step-arrow{transform:rotate(90deg)}
+  .agent-step-body{display:none;padding:0 14px 10px;font-size:.82rem;line-height:1.6;color:#1a2e1f}
+  .agent-step.open .agent-step-body{display:block}
+  .disclaimer-card{max-width:780px;margin:12px auto 0;padding:12px 16px;background:#fff8f0;border:1px solid #f0d8b8;border-radius:10px;font-size:.78rem;color:#8b6914;line-height:1.5}
+  .hr-label{font-size:.7rem;color:#8aa890;white-space:nowrap}
 
   /* Overlay */
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.15);z-index:19}
@@ -230,6 +240,50 @@
     .irow,.irow-3{grid-template-columns:1fr}
     .pt-summary{flex-wrap:wrap}
   }
+
+  /* ────── Auth Overlay ────── */
+  .auth-overlay{position:fixed;inset:0;background:#edf5ef;z-index:200;display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+  .auth-overlay.hidden{opacity:0;pointer-events:none}
+  .auth-card{background:#fff;border-radius:24px;padding:40px 36px;width:400px;max-width:92vw;box-shadow:0 8px 40px rgba(0,0,0,.08);text-align:center}
+  .auth-logo{margin-bottom:28px}
+  .auth-logo-icon{width:56px;height:56px;margin:0 auto 12px;background:linear-gradient(135deg,#2d9a4e,#3cb860);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px}
+  .auth-logo-text{font-family:Georgia,serif;font-size:1.4rem;font-weight:600;color:#1a2e1f}
+  .auth-logo-sub{font-size:.75rem;color:#8aa890;text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .auth-title{font-family:Georgia,serif;font-size:1.2rem;font-weight:600;color:#1a2e1f;margin-bottom:4px}
+  .auth-desc{font-size:.82rem;color:#8aa890;margin-bottom:20px}
+  .auth-input-wrap{margin-bottom:12px}
+  .auth-input{width:100%;padding:12px 16px;border:1px solid #d8e8da;border-radius:12px;font:inherit;font-size:.9rem;outline:none;background:#f9fcf9;transition:border .2s;box-sizing:border-box}
+  .auth-input:focus{border-color:#3cb860;box-shadow:0 0 0 3px rgba(45,154,78,.1)}
+  .auth-error{font-size:.8rem;color:#c53030;min-height:1.2em;margin-bottom:8px}
+  .auth-btn{width:100%;padding:12px;background:linear-gradient(135deg,#2d9a4e,#3cb860);border:none;border-radius:12px;color:#fff;font:inherit;font-size:.95rem;font-weight:600;cursor:pointer;transition:opacity .2s}
+  .auth-btn:hover{opacity:.9}
+  .auth-btn:disabled{opacity:.5;cursor:not-allowed}
+  .auth-switch{font-size:.82rem;color:#8aa890;margin-top:16px}
+  .auth-switch a{color:#2d9a4e;text-decoration:none;font-weight:500}
+  .auth-switch a:hover{text-decoration:underline}
+  .auth-logout{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;background:none;border:1px solid #d8e8da;border-radius:8px;font:inherit;font-size:.75rem;color:#c53030;cursor:pointer;transition:background .2s}
+  .auth-logout:hover{background:#fce4e4}
+
+  /* ────── Camera Overlay ────── */
+  .cam-overlay{display:none;position:fixed;inset:0;background:#000;z-index:300;flex-direction:column;align-items:center;justify-content:center}
+  .cam-overlay.open{display:flex}
+  .cam-video{max-width:100%;max-height:calc(100vh - 100px);border-radius:12px}
+  .cam-toolbar{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);display:flex;gap:20px;align-items:center}
+  .cam-btn{width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .15s}
+  .cam-btn:active{transform:scale(.9)}
+  .cam-capture{background:#fff;color:#1a2e1f}
+  .cam-capture:hover{background:#e8e8e8}
+  .cam-close{background:rgba(255,255,255,.15);color:#fff}
+  .cam-close:hover{background:rgba(255,255,255,.25)}
+  .cam-flip{background:rgba(255,255,255,.15);color:#fff;font-size:20px}
+  .cam-flip:hover{background:rgba(255,255,255,.25)}
+  .cam-preview{max-width:100%;max-height:calc(100vh - 100px);border-radius:12px}
+  .cam-action-btn{padding:12px 28px;border-radius:12px;border:none;font:inherit;font-size:.95rem;font-weight:600;cursor:pointer}
+  .cam-use{background:#2d9a4e;color:#fff}
+  .cam-use:hover{background:#3cb860}
+  .cam-retake{background:rgba(255,255,255,.15);color:#fff}
+  .cam-retake:hover{background:rgba(255,255,255,.25)}
+  .cam-error{color:#ff6b6b;font-size:.9rem;text-align:center;padding:20px}
 </style>
 </head>
 <body>
@@ -252,10 +306,13 @@
     <div class="s-footer-user" onclick="mcOpenProfile()">
       <div class="s-footer-avatar" id="smallAvatar">U</div>
       <div class="s-footer-info">
-        <div class="s-footer-name" id="smallName">Dr. User</div>
-        <div class="s-footer-role">Physician</div>
+        <div class="s-footer-name" id="smallName">Patient</div>
+        <div class="s-footer-role">Patient</div>
       </div>
       <div class="s-footer-badge"></div>
+    </div>
+    <div style="text-align:center;padding-top:6px">
+      <button class="auth-logout" onclick="authLogout()">Sign Out</button>
     </div>
   </div>
 </aside>
@@ -448,10 +505,13 @@
   <button class="scroll-btn" id="scrollBtn" onclick="mcScroll()">↓</button>
 
   <div class="input-area">
-    <input type="file" id="fileInput" multiple accept=".pdf,.png,.jpg,.jpeg,.txt" style="display:none" onchange="mcOnFiles(event)">
+    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.pdf,.txt" style="display:none" onchange="mcOnFiles(event)">
     <div class="input-wrap">
       <button class="attach-btn" id="attachBtn" title="Attach files" onclick="_E('fileInput').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <button class="attach-btn" id="cameraBtn" title="Take a photo" onclick="mcOpenCamera()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </button>
       <textarea class="chat-input" id="chatInput" placeholder="Type your health question..." rows="1"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();mcSend()}"
@@ -474,15 +534,15 @@
   </div>
   <div class="rpanel-body">
     <div class="prof-avatar" id="profAvatar">U</div>
-    <div class="prof-name" id="profName">Dr. User</div>
-    <div class="prof-email" id="profEmail">physician@hospital.com</div>
+    <div class="prof-name" id="profName">Patient</div>
+    <div class="prof-email" id="profEmail">patient@clinic.com</div>
     <div class="prof-edit-wrap"><button class="chip-btn" onclick="mcEditProfile()">✎ Edit Profile</button></div>
     <div class="section">
       <div class="section-label">Personal Information</div>
-      <div class="info-row"><span>Name</span><span class="info-val" id="fieldName">Dr. User</span><button class="edit-link" onclick="mcEditField('name')">Edit</button></div>
-      <div class="info-row"><span>Email</span><span class="info-val" id="fieldEmail">physician@hospital.com</span><button class="edit-link" onclick="mcEditField('email')">Edit</button></div>
-      <div class="info-row"><span>Specialty</span><span class="info-val" id="fieldSpecialty">General Medicine</span><button class="edit-link" onclick="mcEditField('specialty')">Edit</button></div>
-      <div class="info-row"><span>Institution</span><span class="info-val" id="fieldInstitution">City General Hospital</span><button class="edit-link" onclick="mcEditField('institution')">Edit</button></div>
+      <div class="info-row"><span>Name</span><span class="info-val" id="fieldName">Patient</span><button class="edit-link" onclick="mcEditField('name')">Edit</button></div>
+      <div class="info-row"><span>Email</span><span class="info-val" id="fieldEmail">patient@clinic.com</span><button class="edit-link" onclick="mcEditField('email')">Edit</button></div>
+      <div class="info-row"><span>Specialty</span><span class="info-val" id="fieldSpecialty">General</span><button class="edit-link" onclick="mcEditField('specialty')">Edit</button></div>
+      <div class="info-row"><span>Institution</span><span class="info-val" id="fieldInstitution">City Clinic</span><button class="edit-link" onclick="mcEditField('institution')">Edit</button></div>
     </div>
     <div class="section">
       <div class="section-label">Account</div>
@@ -568,17 +628,171 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ────── CAMERA OVERLAY ────── -->
+<div class="cam-overlay" id="camOverlay">
+  <video class="cam-video" id="camVideo" autoplay playsinline></video>
+  <div class="cam-toolbar" id="camToolbar">
+    <button class="cam-btn cam-close" onclick="mcCloseCamera()" title="Close">&times;</button>
+    <button class="cam-btn cam-capture" onclick="mcCapturePhoto()" title="Capture">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/></svg>
+    </button>
+  </div>
+</div>
+<div class="cam-overlay" id="camPreviewOverlay">
+  <canvas id="camCanvas" style="display:none"></canvas>
+  <div style="text-align:center">
+    <img class="cam-preview" id="camPreview" alt="Preview">
+    <div style="margin-top:20px;display:flex;gap:14px;justify-content:center">
+      <button class="cam-action-btn cam-retake" onclick="mcRetakePhoto()">Retake</button>
+      <button class="cam-action-btn cam-use" onclick="mcUsePhoto()">Use Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ────── AUTH OVERLAY ────── -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card" id="authCard">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">🩺</div>
+      <div class="auth-logo-text">MediChat</div>
+      <div class="auth-logo-sub">AI Health Assistant</div>
+    </div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+      <div class="auth-title">Welcome back</div>
+      <div class="auth-desc">Sign in to your account</div>
+      <div class="auth-input-wrap">
+        <input class="auth-input" id="loginUser" placeholder="Username" autocomplete="username">
+      </div>
+      <div class="auth-input-wrap">
+        <input class="auth-input" id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <div class="auth-error" id="authError"></div>
+      <button class="auth-btn" id="loginBtn" onclick="authLogin()">Sign In</button>
+      <div class="auth-switch">Don't have an account? <a href="#" onclick="authShowRegister();return false">Register</a></div>
+    </div>
+
+    <!-- Register Form -->
+    <div id="registerForm" style="display:none">
+      <div class="auth-title">Create account</div>
+      <div class="auth-desc">Register to start using MediChat</div>
+      <div class="auth-input-wrap">
+        <input class="auth-input" id="regUser" placeholder="Username (min 3 characters)" autocomplete="username">
+      </div>
+      <div class="auth-input-wrap">
+        <input class="auth-input" id="regPass" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password">
+      </div>
+      <div class="auth-input-wrap">
+        <input class="auth-input" id="regPass2" type="password" placeholder="Confirm password" autocomplete="new-password">
+      </div>
+      <div class="auth-error" id="authError2"></div>
+      <button class="auth-btn" id="registerBtn" onclick="authRegister()">Create Account</button>
+      <div class="auth-switch">Already have an account? <a href="#" onclick="authShowLogin();return false">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
 <script>
-// ────── GLOBAL STATE ──────
+// ────── AUTH STATE ──────
+var _token = localStorage.getItem('mcf_token');
+var _user = null;
+
+function _apiBaseUrl() { return ''; }
+
+// ────── AUTH FUNCTIONS ──────
+function authShowRegister(){
+  _E('loginForm').style.display='none';
+  _E('registerForm').style.display='block';
+  _E('authError2').textContent='';
+}
+function authShowLogin(){
+  _E('registerForm').style.display='none';
+  _E('loginForm').style.display='block';
+  _E('authError').textContent='';
+}
+
+function authLogin(){
+  var u=_E('loginUser').value.trim(), p=_E('loginPass').value;
+  if(!u||!p){_E('authError').textContent='Please fill in all fields';return}
+  var btn=_E('loginBtn');btn.disabled=true;btn.textContent='Signing in...';
+  fetch(_apiBaseUrl()+'/api/auth/login',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})
+  }).then(function(r){
+    if(!r.ok) return r.json().then(function(e){throw new Error(e.detail||'Login failed')});
+    return r.json();
+  }).then(function(data){
+    _token=data.access_token;localStorage.setItem('mcf_token',_token);
+    _user=data.user;authHide();_renderProfile();_renderSide();
+  }).catch(function(e){
+    _E('authError').textContent=e.message;
+    btn.disabled=false;btn.textContent='Sign In';
+  });
+}
+
+function authRegister(){
+  var u=_E('regUser').value.trim(), p=_E('regPass').value, p2=_E('regPass2').value;
+  if(!u||!p||!p2){_E('authError2').textContent='Please fill in all fields';return}
+  if(p!==p2){_E('authError2').textContent='Passwords do not match';return}
+  var btn=_E('registerBtn');btn.disabled=true;btn.textContent='Creating account...';
+  fetch(_apiBaseUrl()+'/api/auth/register',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})
+  }).then(function(r){
+    if(!r.ok) return r.json().then(function(e){throw new Error(e.detail||'Registration failed')});
+    return r.json();
+  }).then(function(data){
+    _token=data.access_token;localStorage.setItem('mcf_token',_token);
+    _user=data.user;authHide();_renderProfile();_renderSide();
+  }).catch(function(e){
+    _E('authError2').textContent=e.message;
+    btn.disabled=false;btn.textContent='Create Account';
+  });
+}
+
+function authLogout(){
+  _token=null;_user=null;localStorage.removeItem('mcf_token');
+  authShow();
+}
+
+function authShow(){
+  _E('authOverlay').classList.remove('hidden');
+  _E('loginForm').style.display='block';
+  _E('registerForm').style.display='none';
+  _E('loginUser').value='';_E('loginPass').value='';
+  _E('regUser').value='';_E('regPass').value='';_E('regPass2').value='';
+  _E('authError').textContent='';_E('authError2').textContent='';
+  var btnL=_E('loginBtn');btnL.disabled=false;btnL.textContent='Sign In';
+  var btnR=_E('registerBtn');btnR.disabled=false;btnR.textContent='Create Account';
+}
+
+function authHide(){
+  _E('authOverlay').classList.add('hidden');
+}
+
+function authInit(){
+  if(_token){
+    fetch(_apiBaseUrl()+'/api/auth/me',{
+      headers:{'Authorization':'Bearer '+_token}
+    }).then(function(r){
+      if(!r.ok){_token=null;localStorage.removeItem('mcf_token');authShow();return}
+      return r.json();
+    }).then(function(u){
+      if(u){_user=u;authHide();_renderSide();_renderProfile()}
+    }).catch(function(){authShow()});
+  } else { authShow(); }
+}
 var _d = {};    // all conversations
 var _c = null;  // active conversation id
 var _b = false; // busy flag
+var _apiBase = ''; // Same origin — FastAPI serves both API and frontend
 
 // Profile
-var _p = { name:'Dr. User', initials:'U', email:'physician@hospital.com', specialty:'General Medicine', institution:'City General Hospital' };
+var _p = { name:'', initials:'', email:'patient@clinic.com', specialty:'General', institution:'City Clinic' };
 
 // Settings
-var _s = { theme:'light', model:'claude', temperature:'0.7', stream:true, autoSave:true, disclaimer:true, shareData:false };
+var _s = { theme:'light', model:'local', temperature:'0.3', stream:false, autoSave:true, disclaimer:true, shareData:false };
 
 // Edit
 var _ef = null;
@@ -615,11 +829,13 @@ function _renderSide(){
 }
 
 function _renderProfile(){
-  _E('smallName').textContent=_p.name;
-  _E('smallAvatar').textContent=_p.initials;
-  _E('profName').textContent=_p.name;
+  var displayName = _user ? _user.username : _p.name;
+  var initials = _user ? _user.username.charAt(0).toUpperCase() : _p.initials;
+  _E('smallName').textContent=displayName;
+  _E('smallAvatar').textContent=initials;
+  _E('profName').textContent=displayName;
   _E('profEmail').textContent=_p.email;
-  _E('profAvatar').textContent=_p.initials;
+  _E('profAvatar').textContent=initials;
   _E('fieldName').textContent=_p.name;
   _E('fieldEmail').textContent=_p.email;
   _E('fieldSpecialty').textContent=_p.specialty;
@@ -660,6 +876,58 @@ function _callAI(userMsg, systemCtx, cb){
   setTimeout(function(){
     cb('Thanks for your question about *"'+_esc(userMsg)+'"*.\n\nThis is a placeholder response using the **'+_s.model+'** model (temp: '+_s.temperature+'). The medical AI backend will be integrated here to provide evidence-based answers to your health questions.\n\n**Next steps:** Locate the `_callAI` function and replace it with your API integration.');
   },800+Math.random()*1200);
+// ────── AI CALL (real API integration) ──────
+function _callAI(userMsg, files, heartRate, convId, cb){
+  // Step 1: Upload files if present, then send chat request
+  var uploadPromises = (files || []).map(function(f){
+    var fd = new FormData();
+    fd.append('file', f);
+    return fetch(_apiBase + '/api/upload', { method:'POST', body: fd })
+      .then(function(r){
+        if(!r.ok) throw new Error('Upload failed: ' + f.name);
+        return r.json();
+      });
+  });
+
+  Promise.all(uploadPromises).then(function(uploads){
+    // Determine file paths from upload results
+    var breastPath = null, skinPath = null;
+    uploads.forEach(function(u){
+      var name = (u.file_path || '').toLowerCase();
+      var fname = name.split(/[/\\]/).pop();
+      if(fname.indexOf('breast') !== -1 || fname.indexOf('mamm') !== -1){
+        breastPath = u.file_path;
+      } else {
+        skinPath = u.file_path;
+      }
+    });
+
+    // Build form data for the chat request
+    var fd = new FormData();
+    fd.append('message', userMsg);
+    fd.append('conversation_id', convId);
+    if(heartRate) fd.append('heart_rate', heartRate);
+    if(breastPath) fd.append('breast_scan_path', breastPath);
+    if(skinPath) fd.append('skin_photo_path', skinPath);
+
+    return fetch(_apiBase + '/api/chat', { method:'POST', body: fd });
+  }).then(function(r){
+    if(!r.ok){ return r.json().then(function(e){ throw new Error(e.detail || e.message || 'Chat request failed') }) }
+    return r.json();
+  }).then(function(data){
+    cb(data.reply, data.messages || [], data.disclaimer || '');
+  }).catch(function(err){
+    console.error('API Error:', err);
+    var msg = err.message || String(err);
+    if(msg.indexOf('Ollama') !== -1 || msg.indexOf('unavailable') !== -1){
+      msg = '⚠️ Ollama is not running. Please start it locally (ollama serve) and pull the model (ollama pull llama3.2).';
+    } else if(msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1){
+      msg = '⚠️ Cannot reach the server. Make sure uvicorn is running.';
+    } else {
+      msg = '⚠️ ' + msg;
+    }
+    cb(msg, [], '');
+  });
 }
 
 // ────── PUBLIC FUNCTIONS ──────
@@ -676,8 +944,17 @@ function mcOpen(id){
 
 function mcNew(){
   if(_b)return;
-  var id=_uid();_d[id]={title:'New Conversation',msgs:[],ts:Date.now()};
-  _save();mcOpen(id);mcCloseSide();
+  var id=_uid();
+  // Create a backend conversation
+  fetch(_apiBase+'/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'}})
+    .then(function(r){return r.json()})
+    .then(function(data){
+      _d[id]={title:'New Conversation',msgs:[],ts:Date.now(),convId:data.conversation_id};
+      _save();mcOpen(id);mcCloseSide();
+    }).catch(function(){
+      _d[id]={title:'New Conversation',msgs:[],ts:Date.now(),convId:id};
+      _save();mcOpen(id);mcCloseSide();
+    });
 }
 
 function mcDel(id){
@@ -693,8 +970,7 @@ function mcReset(){
 }
 
 function mcSend(){
-  // FIX: re-check busy right before acting
-  if(_b){ console.log('mcSend blocked — busy'); return; }
+  if(_b){ return; }
   var inp=_E('chatInput');var text=inp.value.trim();
   if(!text){ console.log('mcSend blocked — empty'); return; }
   if(!_c||!_d[_c]){ console.log('mcSend: no active conv, creating'); mcNew(); }
@@ -702,16 +978,56 @@ function mcSend(){
   var firstMsg=conv.msgs.length===0;
   _b=true; // lock early
   console.log('mcSend: sending "'+text+'"');
+  if(!text){ return; }
+  if(!_c||!_d[_c]){ mcNew(); }
+  var conv=_d[_c];if(!conv){ return; }
+  _b=true;
   var w=_E('msgs').querySelector('.welcome');if(w)w.style.display='none';
   if(conv.msgs.length===0){conv.title=text.length>32?text.slice(0,32)+'…':text;_E('htitle').textContent=conv.title}
   conv.msgs.push({role:'user',content:text});_addMsg({role:'user',content:text});
+  // Gather inputs
+  var hr = null;
+  var attachedFiles=_files.slice(); // copy
   inp.value='';mcOnInput();mcClearFiles();_save();_renderSide();mcScroll();
   mcUpdSend();
   var typingEl=_showTyping();mcScroll();
   var sysCtx=firstMsg?mcBuildPatientCtx():null;
   _callAI(text,sysCtx,function(reply){
     _hideTyping(typingEl);conv.msgs.push({role:'assistant',content:reply});
+  // Remove existing agent steps
+  var oldSteps=_E('msgs').querySelectorAll('.agent-steps,.disclaimer-card');
+  for(var i=0;i<oldSteps.length;i++) oldSteps[i].remove();
+  _callAI(text,attachedFiles,hr,conv.convId||_c,function(reply,steps,disclaimer){
+    _hideTyping(typingEl);
+    // Show agent-by-agent steps (excluding final synthesis)
+    if(steps.length>1){
+      var stepsHtml='<div class="agent-steps">';
+      for(var j=0;j<steps.length-1;j++){
+        var s=steps[j];
+        if(s.role!=='assistant') continue;
+        var label='Agent Step '+(j+1);
+        if(s.content.indexOf('Heart Disease')!==-1) label='Heart Disease Agent';
+        else if(s.content.indexOf('Breast Cancer')!==-1) label='Breast Cancer Agent';
+        else if(s.content.indexOf('Skin Disease')!==-1) label='Skin Disease Agent';
+        else if(s.content.indexOf('Router')!==-1) label='Router';
+        else label='Agent Step '+(j+1);
+        stepsHtml+='<div class="agent-step" onclick="this.classList.toggle(\'open\')">';
+        stepsHtml+='<div class="agent-step-header"><span>'+_esc(label)+'</span><span class="agent-step-arrow">▶</span></div>';
+        stepsHtml+='<div class="agent-step-body">'+_fmt(s.content)+'</div>';
+        stepsHtml+='</div>';
+      }
+      stepsHtml+='</div>';
+      var stepsDiv=document.createElement('div');stepsDiv.innerHTML=stepsHtml;
+      _E('msgs').appendChild(stepsDiv.firstElementChild);
+    }
+    // Show the final synthesis reply
+    conv.msgs.push({role:'assistant',content:reply});
     _addMsg({role:'assistant',content:reply});
+    // Show disclaimer if present
+    if(disclaimer){
+      var dDiv=document.createElement('div');dDiv.className='disclaimer-card';dDiv.innerHTML=_fmt(disclaimer);
+      _E('msgs').appendChild(dDiv);
+    }
     _b=false;_save();mcUpdSend();mcScroll();
   });
 }
@@ -790,7 +1106,7 @@ function mcToast(msg){
 // ────── FILES ──────
 var _files = [];
 var _FILE_MAX = 10 * 1024 * 1024;
-var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'text/plain':1};
+var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'image/bmp':1,'image/tiff':1,'image/webp':1,'text/plain':1};
 
 function _fmtSize(bytes){
   if(bytes<1024) return bytes+' B';
@@ -993,6 +1309,68 @@ function mcBuildPatientCtx(){
   if(p&&p.bp)L.push('Blood Pressure: '+p.bp);
   if(p&&p.hr)L.push('Heart Rate: '+p.hr+' bpm');
   return L.join('\n');
+// ────── CAMERA ──────
+var _camStream = null;
+var _facingMode = 'environment';
+
+function mcOpenCamera(){
+  if(_b) return;
+  _E('camOverlay').classList.add('open');
+  _E('camPreviewOverlay').classList.remove('open');
+  _E('camToolbar').style.display='flex';
+  _startCamera();
+}
+
+function _startCamera(){
+  var video=_E('camVideo');
+  if(_camStream){_camStream.getTracks().forEach(function(t){t.stop()})}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:_facingMode,width:{ideal:1920},height:{ideal:1080}},audio:false})
+    .then(function(stream){
+      _camStream=stream;
+      video.srcObject=stream;
+    }).catch(function(err){
+      _E('camOverlay').innerHTML='<div class="cam-error">Camera access denied or not available.<br>Please allow camera permission or use file upload instead.<br><br><button class="cam-action-btn cam-retake" onclick="mcCloseCamera()" style="background:rgba(255,255,255,.15);color:#fff">Close</button></div>';
+    });
+}
+
+function mcCloseCamera(){
+  _E('camOverlay').classList.remove('open');
+  _E('camPreviewOverlay').classList.remove('open');
+  if(_camStream){_camStream.getTracks().forEach(function(t){t.stop()});_camStream=null}
+}
+
+function mcCapturePhoto(){
+  var video=_E('camVideo');
+  var canvas=_E('camCanvas');
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  var ctx=canvas.getContext('2d');
+  // Mirror if using front camera
+  if(_facingMode==='user'){ctx.translate(canvas.width,0);ctx.scale(-1,1)}
+  ctx.drawImage(video,0,0);
+  // Show preview
+  var preview=_E('camPreview');
+  preview.src=canvas.toDataURL('image/jpeg',0.92);
+  _E('camToolbar').style.display='none';
+  _E('camPreviewOverlay').classList.add('open');
+}
+
+function mcRetakePhoto(){
+  _E('camPreviewOverlay').classList.remove('open');
+  _E('camToolbar').style.display='flex';
+}
+
+function mcUsePhoto(){
+  var canvas=_E('camCanvas');
+  // Convert to a File object
+  canvas.toBlob(function(blob){
+    var filename='camera_'+Date.now()+'.jpg';
+    var file=new File([blob],filename,{type:'image/jpeg'});
+    _files.push(file);
+    _renderFiles();
+    mcCloseCamera();
+    mcToast('Photo added: '+filename);
+  },'image/jpeg',0.92);
 }
 
 // ────── INIT ──────
@@ -1013,6 +1391,9 @@ function mcBuildPatientCtx(){
   // Apply saved settings
   if(!_s.disclaimer)_E('disclaimer').style.display='none';
   _applyTheme(_s.theme==='dark');
+
+  // Auth
+  authInit();
 
   console.log('MediChat ready');
 })();
