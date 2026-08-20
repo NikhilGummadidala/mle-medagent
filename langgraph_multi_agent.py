@@ -16,6 +16,7 @@ from langgraph.graph import StateGraph, add_messages
 from pydantic import BaseModel, Field
 
 from ingestion import encode_image_to_base64, get_image_mime_type
+from models.heart_disease import FEATURE_DEFAULTS as DEFAULT_MEASUREMENTS
 from models.heart_disease import predict as predict_heart_disease
 from models.breast_cancer import predict as predict_breast_cancer
 from models.skin_disease import predict as predict_skin_disease
@@ -25,7 +26,7 @@ from models.skin_disease import predict as predict_skin_disease
 USER_MEASUREMENT_KEYS = [
     "age",
     "sex",
-    "chest_pain_type",
+    "chest_pain_type",      # 1=typical angina, 2=atypical, 3=non-anginal, 4=asymptomatic
     "resting_blood_pressure",
     "cholesterol",
     "fasting_blood_sugar",
@@ -33,26 +34,57 @@ USER_MEASUREMENT_KEYS = [
     "max_heart_rate",
     "exercise_induced_angina",
     "oldpeak",
-    "slope",
+    "slope",        # ST slope: 1=upsloping, 2=flat, 3=downsloping
     "ca",           # number of major vessels (0-3) colored by fluoroscopy
-    "thal",         # thalassemia type (0=normal, 1=fixed defect, 2=reversible defect)
+    "thal",         # thalassemia (3=normal, 6=fixed defect, 7=reversible defect)
 ]
 
-DEFAULT_MEASUREMENTS: dict[str, int | float] = {
-    "age": 50,
-    "sex": 0,
-    "chest_pain_type": 0,
-    "resting_blood_pressure": 120,
-    "cholesterol": 200,
-    "fasting_blood_sugar": 0,
-    "resting_ecg": 0,
-    "max_heart_rate": 140,
-    "exercise_induced_angina": 0,
-    "oldpeak": 0.0,
-    "slope": 1,
-    "ca": 0,
-    "thal": 2,
+# ── Follow-Up Question Definitions ────────────────────────────────────────────
+#
+# The cardiac model wants 13 features, but a patient sitting at home can only
+# answer some of them — oldpeak, slope, ca, thal and resting_ecg come off a
+# stress test, ECG trace or fluoroscopy report. We ask for the rest rather than
+# quietly substituting population defaults and presenting the result as theirs.
+
+PATIENT_ANSWERABLE_KEYS = [
+    "age",
+    "sex",
+    "chest_pain_type",
+    "resting_blood_pressure",
+    "max_heart_rate",
+    "exercise_induced_angina",
+    "cholesterol",
+    "fasting_blood_sugar",
+]
+
+MEASUREMENT_QUESTIONS: dict[str, str] = {
+    "age": "How old are you?",
+    "sex": "Were you recorded as male or female at birth? (the risk model was "
+           "trained on that as a two-way split)",
+    "chest_pain_type": "How would you describe any chest discomfort — does it come "
+                       "on with exertion and settle with rest, does it also happen "
+                       "at rest, does it feel unrelated to effort (sharp, or worse "
+                       "when you breathe in), or do you have none at all?",
+    "resting_blood_pressure": "Do you know a recent resting blood pressure reading? "
+                              "(for example 128/82 — the top number is the one I need)",
+    "max_heart_rate": "What is the highest heart rate you have seen on a watch, "
+                      "monitor or treadmill test?",
+    "exercise_induced_angina": "Do you get chest pain or tightness when you exert "
+                               "yourself — climbing stairs or walking uphill?",
+    "cholesterol": "Do you know your total cholesterol from a recent blood test? "
+                   "(in mg/dL)",
+    "fasting_blood_sugar": "Has a fasting blood sugar test ever come back above "
+                           "120 mg/dL?",
 }
+
+# Sentinel keys for the non-numeric things we can chase up.
+ASK_SKIN_PHOTO = "skin_photo"
+ASK_BREAST_SCAN = "breast_scan"
+
+# Enough to clear the whole list in one round when the front-desk form has
+# already supplied age and sex, without dumping a wall of questions on someone
+# who skipped it (they get a short second round instead).
+MAX_QUESTIONS_PER_TURN = 6
 
 # Wisconsin Breast Cancer dataset feature keys (30 features)
 BREAST_CANCER_FEATURE_KEYS = [
@@ -78,8 +110,13 @@ class MedAgentState(TypedDict):
     file_references: dict[str, str | None]              # {"breast_scan_path": ..., "skin_photo_path": ...}
 
     # ── Routing & Orchestration ──
-    next_agent: str                                     # "heart_disease" | "breast_cancer" | "skin_disease" | "synthesis" | "__end__"
+    next_agent: str                                     # "heart_disease" | "breast_cancer" | "skin_disease" | "clarify" | "synthesis" | "__end__"
     messages: Annotated[list[BaseMessage], add_messages]  # LangGraph conversation history (append reducer)
+
+    # ── Follow-Up Question Tracking ──
+    asked_fields: list[str]                             # measurement keys (and ASK_* sentinels) already put to the patient
+    pending_questions: list[str]                        # questions asked last turn, so the extractor can read the reply in context
+    clarification_target: str                           # which specialist we are gathering data for
 
     # ── Agent Outputs (ML model structured data) ──
     heart_disease_analysis: dict[str, Any]               # {diagnosis, confidence, details, features_used}
@@ -103,7 +140,7 @@ class MedAgentState(TypedDict):
 class RoutingDecision(BaseModel):
     next_agent: Literal[
         "heart_disease", "breast_cancer", "skin_disease", "synthesis", "__end__"
-    ] = Field(
+    ] = Field(  # "clarify" is decided in code, not by the LLM
         description="The specialist to route to, 'synthesis' to compile all diagnoses, "
         "or '__end__' to finish without a medical response"
     )
@@ -163,23 +200,63 @@ def get_available_measurements(state: MedAgentState) -> str:
     return msg
 
 
+# Plausible ranges per feature, in the Cleveland encoding. A small local LLM
+# doing the extraction will occasionally hand back a nonsense value; anything
+# outside these is dropped rather than fed to the model as if the patient said it.
+MEASUREMENT_RANGES: dict[str, tuple[float, float]] = {
+    "age": (0, 130),
+    "sex": (0, 1),
+    "chest_pain_type": (1, 4),
+    "resting_blood_pressure": (60, 260),
+    "cholesterol": (50, 700),
+    "fasting_blood_sugar": (0, 1),
+    "resting_ecg": (0, 2),
+    "max_heart_rate": (40, 250),
+    "exercise_induced_angina": (0, 1),
+    "oldpeak": (0, 10),
+    "slope": (1, 3),
+    "ca": (0, 3),
+    "thal": (3, 7),
+}
+
+
+def is_plausible_measurement(key: str, value: Any) -> bool:
+    """True if `value` is a number inside the trained model's range for `key`."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    lo, hi = MEASUREMENT_RANGES.get(key, (float("-inf"), float("inf")))
+    return lo <= value <= hi
+
+
 # ── Input Extraction Node (LLM-based) ────────────────────────────────────────
 
 EXTRACTOR_SYSTEM_PROMPT = """You are a medical data extraction assistant. Given a patient's message, extract any structured medical data mentioned.
 
 Extract the following when mentioned:
-1. Heart disease measurements: age, sex (0=female,1=male), chest_pain_type (0-3), resting_blood_pressure, cholesterol, fasting_blood_sugar (0/1), resting_ecg (0-2), max_heart_rate, exercise_induced_angina (0/1), oldpeak (float), slope (0-2), ca (0-3), thal (0-3)
+1. Heart disease measurements: age, sex (0=female,1=male), chest_pain_type (1-4), resting_blood_pressure, cholesterol, fasting_blood_sugar (0/1), resting_ecg (0-2), max_heart_rate, exercise_induced_angina (0/1), oldpeak (float), slope (1-3), ca (0-3), thal (3/6/7)
 2. Breast cancer features: radius_mean, texture_mean, perimeter_mean, area_mean, smoothness_mean, compactness_mean, concavity_mean, concave_points_mean, symmetry_mean, fractal_dimension_mean, and their _se and _worst variants (30 total)
 3. File paths: any mentioned image file paths for breast scans or skin photos
 
 Rules:
 - Return null for any field not explicitly mentioned by the user
 - Convert text descriptions to numerical values (e.g., "male" -> sex=1, "female" -> sex=0)
-- If the user says "chest pain type 2", set chest_pain_type=2
+- chest_pain_type: brought on by exertion and relieved by rest -> 1; chest pain that is exertional but atypical, or also occurs at rest -> 2; discomfort unrelated to exertion (sharp, positional, worse on breathing in) -> 3; no chest discomfort at all -> 4
 - If blood pressure is "140/90", use 140 for resting_blood_pressure
+- exercise_induced_angina: "yes"/"when I climb stairs" -> 1; "no" -> 0
+- fasting_blood_sugar: above 120 mg/dL -> 1; at or below 120, or "normal" -> 0
+- If the patient says they do not know a value, leave that field null
 - Only extract what is explicitly stated; do not infer or assume"""
 
 EXTRACTOR_USER_PROMPT = """Extract structured medical data from this patient message:
+
+"{query}" """
+
+EXTRACTOR_FOLLOWUP_PROMPT = """The assistant just asked this patient the following questions:
+{questions}
+
+The patient's reply is below. Map each answer back to the field it answers — a bare
+number or a yes/no answers the question in the same position. Leave a field null if
+they skipped it or said they do not know.
 
 "{query}" """
 
@@ -190,16 +267,25 @@ def input_extraction_node(state: MedAgentState) -> dict[str, Any]:
     structured_llm = llm.with_structured_output(ExtractedInputs)
 
     query = state["raw_user_query"]
+    pending = state.get("pending_questions") or []
+
+    if pending:
+        user_prompt = EXTRACTOR_FOLLOWUP_PROMPT.format(
+            questions="\n".join(f"{i}. {q}" for i, q in enumerate(pending, 1)),
+            query=query,
+        )
+    else:
+        user_prompt = EXTRACTOR_USER_PROMPT.format(query=query)
 
     response = structured_llm.invoke([
         SystemMessage(content=EXTRACTOR_SYSTEM_PROMPT),
-        HumanMessage(content=EXTRACTOR_USER_PROMPT.format(query=query)),
+        HumanMessage(content=user_prompt),
     ])
 
     # Merge extracted measurements into existing state (don't overwrite non-null with null)
     merged_measurements = dict(state.get("user_measurements", {}))
     for k, v in response.user_measurements.items():
-        if v is not None:
+        if k in MEASUREMENT_RANGES and is_plausible_measurement(k, v):
             merged_measurements[k] = v
 
     merged_breast_features = dict(state.get("breast_cancer_features", {}))
@@ -217,6 +303,9 @@ def input_extraction_node(state: MedAgentState) -> dict[str, Any]:
         "user_measurements": merged_measurements,
         "breast_cancer_features": merged_breast_features,
         "file_references": merged_files,
+        # The follow-ups have now been answered (or skipped); don't reuse them
+        # as context for whatever the patient says next turn.
+        "pending_questions": [],
         # User-facing aliases
         "user_query": query,
         "heart_rate": merged_measurements.get("max_heart_rate"),
@@ -258,6 +347,71 @@ Examples:
 
 Only respond with the single word — no explanation."""
 
+
+# ── Readiness Gate ────────────────────────────────────────────────────────────
+
+ATTACHMENT_QUESTIONS: dict[str, str] = {
+    ASK_SKIN_PHOTO: "Could you attach a clear, well-lit photo of the affected skin? "
+                    "Use the paperclip or camera button below.",
+    ASK_BREAST_SCAN: "Could you attach the mammogram or breast scan image you'd "
+                     "like me to look at? Use the paperclip button below.",
+}
+
+
+def question_for_field(key: str) -> str:
+    """Patient-facing wording for a field we still need."""
+    return (
+        MEASUREMENT_QUESTIONS.get(key)
+        or ATTACHMENT_QUESTIONS.get(key)
+        or f"Could you tell me your {key.replace('_', ' ')}?"
+    )
+
+
+def missing_heart_inputs(state: MedAgentState) -> list[str]:
+    """Answerable cardiac measurements we still lack and haven't already asked for."""
+    measurements = state.get("user_measurements") or {}
+    asked = set(state.get("asked_fields") or [])
+    return [
+        key
+        for key in PATIENT_ANSWERABLE_KEYS
+        if measurements.get(key) is None and key not in asked
+    ]
+
+
+def needs_clarification(state: MedAgentState, target: str) -> list[str]:
+    """
+    Fields to chase up before `target` can produce a meaningful result.
+
+    Returns the field keys to ask about, or an empty list if we already have
+    enough — or have asked once and the patient didn't answer, in which case we
+    proceed with what we have rather than nagging.
+    """
+    asked = set(state.get("asked_fields") or [])
+
+    if target == "heart_disease":
+        return missing_heart_inputs(state)[:MAX_QUESTIONS_PER_TURN]
+
+    if target == "skin_disease":
+        has_image = bool(
+            state.get("skin_image_path")
+            or (state.get("file_references") or {}).get("skin_photo_path")
+        )
+        return [] if has_image or ASK_SKIN_PHOTO in asked else [ASK_SKIN_PHOTO]
+
+    if target == "breast_cancer":
+        has_image = bool(
+            state.get("breast_scan_path")
+            or (state.get("file_references") or {}).get("breast_scan_path")
+        )
+        features = state.get("breast_cancer_features") or {}
+        has_features = any(v is not None for v in features.values())
+        if has_image or has_features or ASK_BREAST_SCAN in asked:
+            return []
+        return [ASK_BREAST_SCAN]
+
+    return []
+
+
 def supervisor_node(state: MedAgentState) -> dict[str, Any]:
     llm = ChatOllama(model=TEXT_MODEL, temperature=0)
     structured_llm = llm.with_structured_output(RoutingDecision)
@@ -286,10 +440,63 @@ def supervisor_node(state: MedAgentState) -> dict[str, Any]:
 
     decision = response.next_agent
 
+    # Specialists loop back here, so re-routing to one that has already run this
+    # turn is an infinite loop that ends in GraphRecursionError. The prompt asks
+    # the model not to; this makes sure a small model that does anyway can't
+    # hang the request.
+    if {"heart_disease": heart_done, "breast_cancer": breast_done,
+        "skin_disease": skin_done}.get(decision):
+        decision = "synthesis"
+
+    # A specialist only runs once we can actually feed it. If the patient hasn't
+    # given us the inputs yet, ask for them instead of scoring population defaults.
+    if decision in ("heart_disease", "breast_cancer", "skin_disease"):
+        gaps = needs_clarification(state, decision)
+        if gaps:
+            return {
+                "next_agent": "clarify",
+                "clarification_target": decision,
+                "asked_fields": list(state.get("asked_fields") or []) + gaps,
+                "pending_questions": [question_for_field(k) for k in gaps],
+                "messages": [
+                    HumanMessage(content=f"[Router: need more information for {decision}]")
+                ],
+            }
+
     return {
         "next_agent": decision,
         "messages": [HumanMessage(content=f"[Router: routed to {decision}]")],
     }
+
+
+# ── Clarification Node ────────────────────────────────────────────────────────
+
+CLARIFICATION_LEADS = {
+    "heart_disease": "Before I run anything on your heart, I need a few more details — "
+                     "guessing at them would give you a number about an average patient, "
+                     "not about you.",
+    "breast_cancer": "I can help with that, but I need something to actually look at first.",
+    "skin_disease": "I can help with that, but I need to see it first.",
+}
+
+CLARIFICATION_CLOSER = (
+    "If you don't know one of these, just say so — I'll tell you what I can with "
+    "the rest, and I'll be clear about what I couldn't assess."
+)
+
+
+def clarification_node(state: MedAgentState) -> dict[str, Any]:
+    """Ask the patient for the inputs a specialist needs, and end the turn."""
+    questions = state.get("pending_questions") or []
+    target = state.get("clarification_target", "")
+
+    lead = CLARIFICATION_LEADS.get(
+        target, "I need a little more information before I can help."
+    )
+    body = "\n".join(f"- {q}" for q in questions)
+    message = f"{lead}\n\n{body}\n\n{CLARIFICATION_CLOSER}"
+
+    return {"messages": [AIMessage(content=message)]}
 
 
 # ── Skin Disease Node ─────────────────────────────────────────────────────────
@@ -622,6 +829,7 @@ def compile_medagent_graph(
             heart_disease  -> Supervisor (loop)
             breast_cancer  -> Supervisor (loop)
             skin_disease   -> Supervisor (loop)
+            clarify        -> ClarificationNode -> __end__   (asks, waits for the reply)
             synthesis      -> SynthesisNode -> __end__
             __end__        -> __end__
 
@@ -637,6 +845,7 @@ def compile_medagent_graph(
     graph.add_node("SkinDiseaseNode", skin_disease_node)
     graph.add_node("HeartDiseaseNode", heart_disease_node)
     graph.add_node("BreastCancerNode", breast_cancer_node)
+    graph.add_node("ClarificationNode", clarification_node)
     graph.add_node("SynthesisNode", synthesis_agent_node)
 
     graph.set_entry_point("InputExtractionNode")
@@ -649,6 +858,7 @@ def compile_medagent_graph(
             "skin_disease": "SkinDiseaseNode",
             "heart_disease": "HeartDiseaseNode",
             "breast_cancer": "BreastCancerNode",
+            "clarify": "ClarificationNode",
             "synthesis": "SynthesisNode",
             "__end__": "__end__",
         },
@@ -658,6 +868,9 @@ def compile_medagent_graph(
     graph.add_edge("SkinDiseaseNode", "SupervisorNode")
     graph.add_edge("HeartDiseaseNode", "SupervisorNode")
     graph.add_edge("BreastCancerNode", "SupervisorNode")
+
+    # A follow-up question ends the turn — the patient answers next message
+    graph.add_edge("ClarificationNode", "__end__")
 
     # Synthesis terminates the graph
     graph.add_edge("SynthesisNode", "__end__")
@@ -681,6 +894,9 @@ if __name__ == "__main__":
         },
         "next_agent": "",
         "messages": [HumanMessage(content="Analyze this image of a skin lesion.")],
+        "asked_fields": [],
+        "pending_questions": [],
+        "clarification_target": "",
         "heart_disease_analysis": {},
         "breast_cancer_analysis": {},
         "skin_disease_analysis": {},

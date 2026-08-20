@@ -23,6 +23,25 @@ FEATURE_KEYS = [
     "exercise_induced_angina", "oldpeak", "slope", "ca", "thal",
 ]
 
+# Stand-ins for features the patient hasn't given us. These follow the original
+# UCI Cleveland encoding the model was trained on (see diag-agents/data/heart.csv),
+# NOT the 0-indexed Kaggle variant: chest_pain_type 1-4, slope 1-3, thal 3/6/7.
+FEATURE_DEFAULTS: dict[str, int | float] = {
+    "age": 50,
+    "sex": 0,
+    "chest_pain_type": 4,   # asymptomatic
+    "resting_blood_pressure": 120,
+    "cholesterol": 200,
+    "fasting_blood_sugar": 0,
+    "resting_ecg": 0,       # normal
+    "max_heart_rate": 140,
+    "exercise_induced_angina": 0,
+    "oldpeak": 0.0,
+    "slope": 2,             # flat
+    "ca": 0.0,
+    "thal": 3.0,            # normal
+}
+
 _model = None
 
 
@@ -60,13 +79,6 @@ def predict(measurements: dict[str, int | float | None]) -> dict[str, Any]:
     model = load_model()
 
     # Build feature vector in correct order, fill None with sensible defaults
-    DEFAULTS = {
-        "age": 50, "sex": 0, "chest_pain_type": 0, "resting_blood_pressure": 120,
-        "cholesterol": 200, "fasting_blood_sugar": 0, "resting_ecg": 0,
-        "max_heart_rate": 140, "exercise_induced_angina": 0, "oldpeak": 0.0,
-        "slope": 1, "ca": 0, "thal": 2,
-    }
-
     feature_vector = []
     provided: list[str] = []
     missing: list[str] = []
@@ -77,7 +89,7 @@ def predict(measurements: dict[str, int | float | None]) -> dict[str, Any]:
             feature_vector.append(val)
         else:
             missing.append(key)
-            feature_vector.append(DEFAULTS[key])
+            feature_vector.append(FEATURE_DEFAULTS[key])
 
     X = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
 

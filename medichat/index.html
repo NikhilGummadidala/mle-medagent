@@ -202,7 +202,6 @@
   .intake-sub{padding:12px 16px 0;font-size:.78rem;color:#8aa890;line-height:1.5}
   .intake-form{padding:14px 16px 16px;display:grid;gap:12px}
   .irow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .irow-3{grid-template-columns:1fr 1fr 1fr}
   .ifield{min-width:0}
   .ifield label{display:block;font-size:.72rem;font-weight:600;color:#4a6b52;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
   .ifield label .opt{text-transform:none;font-weight:400;color:#8aa890}
@@ -212,10 +211,6 @@
   .ifield input[type=number]{-moz-appearance:textfield}
   .ifield input[type=number]::-webkit-outer-spin-button,.ifield input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .ierr{display:block;font-size:.72rem;color:#c53030;margin-top:4px;min-height:0}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#d8e8da;outline:none;cursor:pointer}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:#2d9a4e;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
-  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#2d9a4e;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
-  .pain-val{color:#2d9a4e;font-weight:700}
   .intake-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px}
   .btn-danger-intake{padding:9px 16px;background:none;border:1px solid #e8d0d0;border-radius:10px;color:#c53030;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   .btn-danger-intake:hover{background:#fce4e4}
@@ -237,7 +232,7 @@
     .input-area{padding:12px 16px 16px}
     .msg{max-width:100%}
     .intake-wrap{padding:8px 12px 0}
-    .irow,.irow-3{grid-template-columns:1fr}
+    .irow{grid-template-columns:1fr}
     .pt-summary{flex-wrap:wrap}
   }
 
@@ -443,7 +438,7 @@
         <span class="intake-head-r"><span class="intake-status" id="intakeStatus">Not provided</span><span class="intake-chev" id="intakeChev">▴</span></span>
       </button>
       <div class="intake-body open" id="intakeBody">
-        <p class="intake-sub">Sharing your details gives the assistant better context for every reply. Only <strong>Age</strong> and <strong>Current Symptoms</strong> are required — everything else is optional and can be edited anytime.</p>
+        <p class="intake-sub">Just the basics, the same details a front desk would take. Only <strong>Age</strong> and <strong>Reason for visit</strong> are required. The assistant will ask you about your history, medications and any measurements it needs as you chat.</p>
         <form class="intake-form" id="intakeForm" novalidate onsubmit="return mcSubmitIntake()">
           <div class="irow">
             <div class="ifield">
@@ -453,7 +448,7 @@
             </div>
             <div class="ifield">
               <label for="iSex">Sex</label>
-              <select id="iSex" onchange="mcOnSexChange()">
+              <select id="iSex">
                 <option value="">Select…</option>
                 <option>Male</option>
                 <option>Female</option>
@@ -472,110 +467,10 @@
               <span class="ierr" id="errWeight"></span>
             </div>
           </div>
-          <div class="ifield" id="pregField" style="display:none">
-            <label for="iPreg">Pregnancy status</label>
-            <select id="iPreg">
-              <option value="">Select…</option>
-              <option>Not pregnant</option>
-              <option>Pregnant — 1st trimester</option>
-              <option>Pregnant — 2nd trimester</option>
-              <option>Pregnant — 3rd trimester</option>
-              <option>Prefer not to say</option>
-            </select>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iDur">Duration of symptoms</label>
-              <input type="text" id="iDur" placeholder="e.g., 3 days">
-            </div>
-            <div class="ifield">
-              <label for="iPain">Pain level — <span class="pain-val" id="painVal">0</span>/10</label>
-              <input type="range" id="iPain" min="0" max="10" step="1" value="0" oninput="mcOnPain(this.value)">
-            </div>
-          </div>
           <div class="ifield">
-            <label for="iSymp">Current symptoms *</label>
-            <textarea id="iSymp" rows="3" placeholder="Describe your current symptoms…"></textarea>
+            <label for="iSymp">Reason for visit *</label>
+            <textarea id="iSymp" rows="3" placeholder="What brings you in today?"></textarea>
             <span class="ierr" id="errSymp"></span>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iMedCond">Existing medical conditions</label>
-              <textarea id="iMedCond" rows="2" placeholder="e.g., hypertension, type 2 diabetes"></textarea>
-            </div>
-            <div class="ifield">
-              <label for="iMeds">Current medications</label>
-              <textarea id="iMeds" rows="2" placeholder="e.g., metformin 500 mg twice daily"></textarea>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iDrugAll">Drug allergies</label>
-              <input type="text" id="iDrugAll" placeholder="e.g., penicillin">
-            </div>
-            <div class="ifield">
-              <label for="iFoodAll">Food allergies</label>
-              <input type="text" id="iFoodAll" placeholder="e.g., peanuts">
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iSurg">Recent surgeries</label>
-              <textarea id="iSurg" rows="2" placeholder="e.g., appendectomy (2021)"></textarea>
-            </div>
-            <div class="ifield">
-              <label for="iFam">Family medical history</label>
-              <textarea id="iFam" rows="2" placeholder="e.g., heart disease in father"></textarea>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iSmoke">Smoking status</label>
-              <select id="iSmoke">
-                <option value="">Select…</option>
-                <option>Never</option>
-                <option>Former smoker</option>
-                <option>Current smoker</option>
-                <option>Prefer not to say</option>
-              </select>
-            </div>
-            <div class="ifield">
-              <label for="iAlcohol">Alcohol use</label>
-              <select id="iAlcohol">
-                <option value="">Select…</option>
-                <option>None</option>
-                <option>Rarely</option>
-                <option>Occasionally</option>
-                <option>Regularly</option>
-                <option>Prefer not to say</option>
-              </select>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iRecre">Recreational drug use</label>
-              <input type="text" id="iRecre" placeholder="e.g., None">
-            </div>
-            <div class="ifield">
-              <label for="iTravel">Recent travel</label>
-              <input type="text" id="iTravel" placeholder="e.g., None / Mexico 2 weeks ago">
-            </div>
-          </div>
-          <div class="irow irow-3">
-            <div class="ifield">
-              <label for="iTemp">Temperature (°C) <span class="opt">optional</span></label>
-              <input type="number" id="iTemp" min="30" max="45" step="0.1" placeholder="e.g., 37.2">
-              <span class="ierr" id="errTemp"></span>
-            </div>
-            <div class="ifield">
-              <label for="iBP">Blood pressure <span class="opt">optional</span></label>
-              <input type="text" id="iBP" placeholder="e.g., 120/80">
-            </div>
-            <div class="ifield">
-              <label for="iHR">Heart rate (bpm) <span class="opt">optional</span></label>
-              <input type="number" id="iHR" min="20" max="250" placeholder="e.g., 72">
-              <span class="ierr" id="errHR"></span>
-            </div>
           </div>
           <div class="intake-actions">
             <button type="button" class="btn-danger-intake" onclick="mcClearIntake()">Clear Form</button>
@@ -1063,18 +958,13 @@ function _showTyping(){
 function _hideTyping(el){if(el&&el.parentNode)el.parentNode.removeChild(el)}
 
 // ────── AI CALL (real API integration) ──────
-// Map the intake clipboard onto the cardiac model's feature names.
+// Map the front-desk fields onto the cardiac model's feature names. Vitals are
+// not collected here — the assistant asks for those in the conversation.
 function _ptVitals(){
   var v={};
   if(!_pt)return v;
   if(_pt.age!==''&&_pt.age!==undefined&&_pt.age!==null)v.age=_pt.age;
   if(_pt.sex==='Male')v.sex=1; else if(_pt.sex==='Female')v.sex=0;
-  if(_pt.hr)v.heart_rate=parseInt(_pt.hr,10);
-  // "120/80" -> systolic 120
-  if(_pt.bp){
-    var m=String(_pt.bp).match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
-    if(m)v.resting_blood_pressure=parseInt(m[1],10);
-  }
   return v;
 }
 
@@ -1378,11 +1268,6 @@ function mcCloseIntake(){
   _E('intakeBody').classList.remove('open');
   _E('intakeChev').textContent='▾';
 }
-function mcOnSexChange(){
-  _E('pregField').style.display=(_E('iSex').value==='Female')?'block':'none';
-}
-function mcOnPain(v){_E('painVal').textContent=v}
-
 function mcSubmitIntake(){
   var ok=true;
   var ageS=_it('iAge'),ageN=parseFloat(ageS);
@@ -1396,35 +1281,15 @@ function mcSubmitIntake(){
   if(w!==''&&(isNaN(parseFloat(w))||parseFloat(w)<=0)){_setErr('errWeight','Enter a positive number');ok=false}
   else _setErr('errWeight','');
   var symp=_it('iSymp');
-  if(symp===''){_setErr('errSymp','Current symptoms are required');ok=false}
+  if(symp===''){_setErr('errSymp','A reason for visit is required');ok=false}
   else _setErr('errSymp','');
-  var t=_it('iTemp');
-  if(t!==''&&(isNaN(parseFloat(t))||parseFloat(t)<30||parseFloat(t)>45)){_setErr('errTemp','Enter a temperature between 30 and 45 °C');ok=false}
-  else _setErr('errTemp','');
-  var hr=_it('iHR');
-  if(hr!==''&&(isNaN(parseFloat(hr))||parseFloat(hr)<=0)){_setErr('errHR','Enter a positive number');ok=false}
-  else _setErr('errHR','');
   if(!ok)return false;
 
   _pt={
     age:ageN,
     sex:_it('iSex'),
     height:h,weight:w,
-    preg:_it('iPreg'),
-    dur:_it('iDur'),
-    pain:_it('iPain'),
-    symp:symp,
-    cond:_it('iMedCond'),
-    meds:_it('iMeds'),
-    drugAll:_it('iDrugAll'),
-    foodAll:_it('iFoodAll'),
-    surg:_it('iSurg'),
-    fam:_it('iFam'),
-    smoke:_it('iSmoke'),
-    alc:_it('iAlcohol'),
-    recre:_it('iRecre'),
-    travel:_it('iTravel'),
-    temp:t,bp:_it('iBP'),hr:hr
+    symp:symp
   };
   mcCloseIntake();
   _renderSummary();
@@ -1437,14 +1302,13 @@ function mcCancelIntake(){mcCloseIntake()}
 function mcClearIntake(){
   if(_pt&&!confirm('Clear the saved patient information?'))return;
   var els=_E('intakeForm').querySelectorAll('input,textarea,select');
-  for(var i=0;i<els.length;i++){els[i].value=els[i].type==='range'?'0':''}
-  mcOnPain(0);mcOnSexChange();
+  for(var i=0;i<els.length;i++){els[i].value=''}
   _pt=null;
   _E('ptSummary').style.display='none';
   _E('intakeStatus').textContent='Not provided';
   _E('intakeStatus').classList.remove('done');
   _setErr('errAge','');_setErr('errHeight','');_setErr('errWeight','');
-  _setErr('errSymp','');_setErr('errTemp','');_setErr('errHR','');
+  _setErr('errSymp','');
   if(!_intakeOpen)mcToggleIntake();
   mcToast('Form cleared');
 }
@@ -1452,26 +1316,10 @@ function mcClearIntake(){
 function mcEditIntake(){
   if(_pt){
     _E('iAge').value=_pt.age;
-    _E('iSex').value=_pt.sex;mcOnSexChange();
+    _E('iSex').value=_pt.sex;
     _E('iHeight').value=_pt.height;
     _E('iWeight').value=_pt.weight;
-    _E('iPreg').value=_pt.preg;
-    _E('iDur').value=_pt.dur;
-    _E('iPain').value=_pt.pain;mcOnPain(_pt.pain);
     _E('iSymp').value=_pt.symp;
-    _E('iMedCond').value=_pt.cond;
-    _E('iMeds').value=_pt.meds;
-    _E('iDrugAll').value=_pt.drugAll;
-    _E('iFoodAll').value=_pt.foodAll;
-    _E('iSurg').value=_pt.surg;
-    _E('iFam').value=_pt.fam;
-    _E('iSmoke').value=_pt.smoke;
-    _E('iAlcohol').value=_pt.alc;
-    _E('iRecre').value=_pt.recre;
-    _E('iTravel').value=_pt.travel;
-    _E('iTemp').value=_pt.temp;
-    _E('iBP').value=_pt.bp;
-    _E('iHR').value=_pt.hr;
   }
   _intakeOpen=true;
   _E('intakeBody').classList.add('open');
@@ -1486,7 +1334,6 @@ function _renderSummary(){
   if(_pt.sex)parts.push(_pt.sex);
   if(_pt.height)parts.push(_pt.height+' cm');
   if(_pt.weight)parts.push(_pt.weight+' kg');
-  if(_pt.pain&&_pt.pain!=='0')parts.push('Pain: '+_pt.pain+'/10');
   _E('ptSummaryLine').textContent=parts.join('  ·  ');
   _E('intakeStatus').textContent='Saved';
   _E('intakeStatus').classList.add('done');
@@ -1513,25 +1360,9 @@ function mcBuildPatientCtx(){
   L.push('Sex: '+_or(p&&p.sex,'Not provided'));
   if(p&&p.height)L.push('Height: '+p.height+' cm');
   if(p&&p.weight)L.push('Weight: '+p.weight+' kg');
-  if(p&&p.preg)L.push('Pregnancy Status: '+p.preg);
-  L.push('Symptoms: '+_or(p&&p.symp,'Not provided'));
-  if(p&&p.dur)L.push('Duration of Symptoms: '+p.dur);
-  if(p&&p.pain&&p.pain!=='0')L.push('Pain Level: '+p.pain+'/10');
-  L.push('Medical Conditions: '+_or(p&&p.cond,'None reported'));
-  L.push('Medications: '+_or(p&&p.meds,'None reported'));
-  var all=[];
-  if(p&&p.drugAll)all.push('drug: '+p.drugAll);
-  if(p&&p.foodAll)all.push('food: '+p.foodAll);
-  L.push('Allergies: '+(all.length?all.join('; '):'None reported'));
-  if(p&&p.surg)L.push('Recent Surgeries: '+p.surg);
-  if(p&&p.fam)L.push('Family Medical History: '+p.fam);
-  if(p&&p.smoke)L.push('Smoking Status: '+p.smoke);
-  if(p&&p.alc)L.push('Alcohol Use: '+p.alc);
-  if(p&&p.recre)L.push('Recreational Drug Use: '+p.recre);
-  if(p&&p.travel)L.push('Recent Travel: '+p.travel);
-  if(p&&p.temp)L.push('Temperature: '+p.temp+' °C');
-  if(p&&p.bp)L.push('Blood Pressure: '+p.bp);
-  if(p&&p.hr)L.push('Heart Rate: '+p.hr+' bpm');
+  L.push('Reason for Visit: '+_or(p&&p.symp,'Not provided'));
+  L.push('(Front desk intake only — history, medications and vitals have not been '
+        +'collected. Ask the patient for anything else you need.)');
   return L.join('\n');
 }
 
