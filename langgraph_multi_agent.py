@@ -7,6 +7,8 @@ ML models provide clinical predictions; LLMs generate natural-language explanati
 
 from __future__ import annotations
 
+import re
+
 from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -161,6 +163,59 @@ def get_available_measurements(state: MedAgentState) -> str:
     if missing:
         msg += f" | Missing (defaults used): {', '.join(missing)}"
     return msg
+
+
+# ── Assessment Sanitization ───────────────────────────────────────────────────
+
+SAFE_ASSESSMENT_FALLBACK = (
+    "Please interpret the ML result shown above with caution and consult a "
+    "qualified healthcare professional for a complete evaluation."
+)
+
+_NUMERIC_CLAIM_WORDS = (
+    r"confiden[ct]\w*|probab\w*|likely|likelihood|chance\w*|risk|odds"
+)
+
+_CONFIDENCE_PATTERNS = (
+    re.compile(r"\b\d+(?:\.\d+)?\s*%"),
+    re.compile(r"\b\d+(?:\.\d+)?\s*percent\b", re.IGNORECASE),
+    re.compile(
+        rf"\b(?:{_NUMERIC_CLAIM_WORDS})\b[^.\n]{{0,60}}\b0\.\d+\b"
+        rf"|\b0\.\d+\b[^.\n]{{0,60}}\b(?:{_NUMERIC_CLAIM_WORDS})\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b\d+\s+(?:in|out\s+of)\s+\d+\b[^.\n]{{0,30}}\b(?:{_NUMERIC_CLAIM_WORDS})\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:i\s+(?:am|was|feel|felt)|we\s+(?:are|were|feel|felt))\s+"
+        r"(?:very|pretty|fairly|quite|extremely|highly|really)?\s*"
+        r"(?:confident|certain|sure)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:highly|very|extremely)\s+(?:likely|unlikely|probable)\b", re.IGNORECASE),
+    re.compile(r"\b(?:almost|nearly)\s+certain\b", re.IGNORECASE),
+    re.compile(r"\b(?:almost\s+)?certainly\b", re.IGNORECASE),
+)
+
+_RATIO_STRIP = re.compile(r"\b(?:odds|risk|hazard)\s+ratios?\b", re.IGNORECASE)
+
+
+def sanitize_assessment(text: Any) -> str:
+    """Deterministically reject LLM assessment text that introduces unsupported
+    confidence, probability, likelihood, or risk claims. Numeric percentages and
+    numeric probability/confidence statements are always blocked; plain clinical
+    wording (e.g. 'low risk'), measurements, ages, and clinical ratios are not.
+    Returns a fixed non-numerical fallback on any hit, otherwise the original
+    text."""
+    if not isinstance(text, str):
+        return SAFE_ASSESSMENT_FALLBACK
+    stripped = _RATIO_STRIP.sub(" ", text)
+    for pattern in _CONFIDENCE_PATTERNS:
+        if pattern.search(stripped):
+            return SAFE_ASSESSMENT_FALLBACK
+    return text
 
 
 # ── Input Extraction Node (LLM-based) ────────────────────────────────────────
@@ -326,11 +381,16 @@ def skin_disease_node(state: MedAgentState) -> dict[str, Any]:
                     {
                         "type": "text",
                         "text": (
-                            f"This is a skin lesion/dermatological image. "
-                            f"The ML model classified it as: {analysis['diagnosis']} "
-                            f"with {analysis['confidence']:.2f} confidence. "
-                            f"Describe what you observe in this skin image, explain "
-                            f"the classification, and provide patient-friendly guidance. "
+                            f"This is a skin lesion/dermatological image. The ML model has "
+                            f"classified it as: {analysis['diagnosis']}. "
+                            f"You are an explanation layer, NOT a diagnostic model; you did "
+                            f"not produce that classification and must not question, redo, "
+                            f"or replace it with a different diagnosis. Describe what you "
+                            f"observe in the image and explain the classification in "
+                            f"patient-friendly terms. "
+                            f"NEVER generate, estimate, restate, or infer any numerical "
+                            f"confidence, probability, likelihood, or risk percentage, and "
+                            f"do not state any number that could be read as a probability. "
                             f"Be concise (2-3 sentences)."
                         ),
                     },
@@ -340,7 +400,7 @@ def skin_disease_node(state: MedAgentState) -> dict[str, Any]:
                     },
                 ])
             ])
-            diagnosis_text = vision_response.content
+            diagnosis_text = sanitize_assessment(vision_response.content)
         except Exception as e:
             diagnosis_text = (
                 f"ML model result: {analysis['diagnosis']} "
@@ -404,11 +464,13 @@ def heart_disease_node(state: MedAgentState) -> dict[str, Any]:
     if analysis["diagnosis"] == "insufficient data":
         llm_response = llm.invoke([
             SystemMessage(
-                content="You are a cardiology assistant. No cardiac measurements were "
-                "provided, so NO risk assessment was performed. Tell the patient plainly "
-                "that you cannot assess their heart risk without data, and list which "
-                "measurements would be needed. Do NOT state or imply any risk level, "
-                "probability, or confidence. Be concise (2-3 sentences)."
+                content="You are a cardiology explanation layer, NOT a diagnostic model. "
+                "No cardiac measurements were provided and NO risk assessment was performed "
+                "by the ML model, so there is no diagnosis to explain. Tell the patient "
+                "plainly that their heart risk cannot be assessed without such data, and "
+                "list which measurements would be needed. Do NOT provide or imply any "
+                "diagnosis, risk level, probability, or confidence, and do not state any "
+                "number. Be concise (2-3 sentences)."
             ),
             HumanMessage(content="No cardiac measurements available for this patient."),
         ])
@@ -416,24 +478,30 @@ def heart_disease_node(state: MedAgentState) -> dict[str, Any]:
         n_measured, n_estimated = len(analysis["features_provided"]), len(analysis["features_missing"])
         llm_response = llm.invoke([
             SystemMessage(
-                content="You are a cardiology assistant. Explain this heart disease risk "
-                "assessment in clear, patient-friendly language. Be concise (2-3 sentences). "
-                "Only refer to measurements listed as actually measured. If any values were "
-                "estimated from population defaults, say so explicitly and describe the "
-                "result as preliminary. Never claim a value was measured when it was estimated."
+                content="You are a cardiology explanation layer, NOT a diagnostic model. "
+                "The ML model has already produced the prediction provided below; your job "
+                "is only to explain it in clear, patient-friendly language. Do not judge, "
+                "redo, or propose an alternative diagnosis. Only refer to measurements "
+                "listed as actually measured. If any values were estimated from population "
+                "defaults, say so explicitly and describe the result as preliminary. "
+                "Never claim a value was measured when it was estimated. "
+                "NEVER generate, estimate, restate, or infer any numerical confidence, "
+                "probability, likelihood, or risk percentage, and do not state any number "
+                "that could be read as a probability. Be concise (2-3 sentences)."
             ),
             HumanMessage(
-                content=f"Prediction: {analysis['diagnosis']}\n"
-                f"Confidence: {analysis['confidence']:.2f}\n"
+                content=f"ML prediction: {analysis['diagnosis']}\n"
                 f"Actually measured ({n_measured}): {', '.join(analysis['features_provided'])}\n"
                 f"Estimated from defaults ({n_estimated}): {', '.join(analysis['features_missing']) or 'none'}\n"
                 f"Measurements used: {availability}"
             ),
         ])
 
+    assessment = sanitize_assessment(llm_response.content)
+
     return {
         "heart_disease_analysis": analysis,
-        "heart_diagnosis": llm_response.content,
+        "heart_diagnosis": assessment,
         "messages": [
             AIMessage(
                 content=f"**Heart Disease Analysis:**\n"
@@ -441,7 +509,7 @@ def heart_disease_node(state: MedAgentState) -> dict[str, Any]:
                 f"- Confidence: {analysis['confidence']:.2f}\n"
                 f"- Details: {analysis['details']}\n"
                 f"- {availability}\n\n"
-                f"**Assessment:** {llm_response.content}"
+                f"**Assessment:** {assessment}"
             )
         ],
     }
@@ -491,11 +559,16 @@ def breast_cancer_node(state: MedAgentState) -> dict[str, Any]:
                     {
                         "type": "text",
                         "text": (
-                            f"This is a breast scan/mammogram image. "
-                            f"The ML model prediction is: {analysis['diagnosis']} "
-                            f"with {analysis['confidence']:.2f} confidence. "
-                            f"Describe what you observe in this medical image and "
-                            f"explain the findings in patient-friendly language. "
+                            f"This is a breast scan/mammogram image. The ML model has "
+                            f"classified it as: {analysis['diagnosis']}. "
+                            f"You are an explanation layer, NOT a diagnostic model; you "
+                            f"did not produce that classification and must not question, "
+                            f"redo, or replace it with a different diagnosis. Describe "
+                            f"what you observe in the image and explain the classification "
+                            f"in patient-friendly language. "
+                            f"NEVER generate, estimate, restate, or infer any numerical "
+                            f"confidence, probability, likelihood, or risk percentage, and "
+                            f"do not state any number that could be read as a probability. "
                             f"Be concise (2-3 sentences)."
                         ),
                     },
@@ -505,35 +578,43 @@ def breast_cancer_node(state: MedAgentState) -> dict[str, Any]:
                     },
                 ])
             ])
-            diagnosis_text = vision_response.content
+            diagnosis_text = sanitize_assessment(vision_response.content)
         except Exception as e:
             # Fallback to text-only if vision model fails
             llm = ChatOllama(model=TEXT_MODEL, temperature=0)
             text_response = llm.invoke([
                 SystemMessage(
-                    content="You are a breast cancer screening assistant. "
-                    "Explain this prediction in patient-friendly language. Be concise."
+                    content="You are a breast cancer screening explanation layer, NOT a "
+                    "diagnostic model. The ML model has already produced the prediction "
+                    "provided below; explain it in patient-friendly language. Do not judge, "
+                    "redo, or propose an alternative diagnosis. "
+                    "NEVER generate, estimate, restate, or infer any numerical confidence, "
+                    "probability, likelihood, or risk percentage, and do not state any "
+                    "number that could be read as a probability. Be concise (2-3 sentences)."
                 ),
                 HumanMessage(
-                    content=f"Prediction: {analysis['diagnosis']}\n"
-                    f"Confidence: {analysis['confidence']:.2f}\n"
+                    content=f"ML prediction: {analysis['diagnosis']}\n"
                     f"Image was provided but vision analysis failed: {e}"
                 ),
             ])
-            diagnosis_text = text_response.content
+            diagnosis_text = sanitize_assessment(text_response.content)
     else:
         llm = ChatOllama(model=TEXT_MODEL, temperature=0)
         text_response = llm.invoke([
             SystemMessage(
-                content="You are a breast cancer screening assistant. "
-                "Explain this prediction in patient-friendly language. Be concise."
+                content="You are a breast cancer screening explanation layer, NOT a "
+                "diagnostic model. The ML model has already produced the prediction "
+                "provided below; explain it in patient-friendly language. Do not judge, "
+                "redo, or propose an alternative diagnosis. "
+                "NEVER generate, estimate, restate, or infer any numerical confidence, "
+                "probability, likelihood, or risk percentage, and do not state any "
+                "number that could be read as a probability. Be concise (2-3 sentences)."
             ),
             HumanMessage(
-                content=f"Prediction: {analysis['diagnosis']}\n"
-                f"Confidence: {analysis['confidence']:.2f}"
+                content=f"ML prediction: {analysis['diagnosis']}"
             ),
         ])
-        diagnosis_text = text_response.content
+        diagnosis_text = sanitize_assessment(text_response.content)
 
     return {
         "breast_cancer_analysis": analysis,
