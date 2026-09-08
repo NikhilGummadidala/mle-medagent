@@ -1601,8 +1601,10 @@ function mcTriageUrgent(){
   _triageShowEmergency([],'');
 }
 function mcTriageNotUrgent(){
-  _emgFrom='flags';
-  _triageShowStep('triageStepFlags');
+  // "No — I'm not in danger": skip the red-flag checklist and go straight to
+  // the urgency tier. No red flags are pending on this path.
+  _triagePendingFlags=[];
+  _triageShowStep('triageStepTier');
 }
 
 function mcTriageFlag(cbx){
@@ -1665,8 +1667,10 @@ function mcTriageOverride(){
     mcSend();
     return;
   }
-  // From step 0 the checklist hasn't run yet — screen them properly first
-  if(_emgFrom==='zero'){_emgFrom='flags';_triageShowStep('triageStepFlags');return}
+  // From step 0 ("Yes — I need help now") the checklist never ran, so there
+  // are no flags to carry into the tier. From the checklist, any acknowledged
+  // red flags are preserved so this conversation stays marked urgent.
+  if(_emgFrom==='zero')_triageFlags=[];
   _triagePendingFlags=_triageFlags;
   _triageShowStep('triageStepTier');
 }
