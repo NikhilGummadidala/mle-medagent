@@ -1093,8 +1093,9 @@ function _callAI(userMsg, files, heartRate, convId, cb){
   Promise.all(uploadPromises).then(function(uploads){
     // Determine file paths from upload results
     var breastPath = null, skinPath = null;
-    uploads.forEach(function(u){
-      var name = (u.file_path || '').toLowerCase();
+    uploads.forEach(function(u, index){
+      // Saved paths use UUIDs; retain the original attachment name for routing.
+      var name = ((files[index] && files[index].name) || '').toLowerCase();
       var fname = name.split(/[/\\]/).pop();
       if(fname.indexOf('breast') !== -1 || fname.indexOf('mamm') !== -1){
         breastPath = u.file_path;

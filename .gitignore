@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+uploads/
+data/users.db*
+results/
+research_data/
+research_training/
+.local-runtime/
+saved_models/*.pt
+saved_models/*.metadata.json
+!saved_models/breast_cancer_cnn.pt
+!saved_models/breast_cancer_cnn.metadata.json

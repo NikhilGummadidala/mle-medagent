@@ -1,0 +1,10 @@
+-r requirements.txt
+torchvision
+pandas
+pydicom
+matplotlib
+seaborn
+nbclient
+nbformat
+ipykernel
+kagglehub
