@@ -68,6 +68,11 @@
   .msg.ai .msg-bub{background:#fff;border:1px solid #d8e8da;border-top-left-radius:8px}
   .msg.usr .msg-bub{background:#d4f0dc;border:1px solid rgba(45,154,78,.15);border-top-right-radius:8px}
   .msg-bub strong{color:#2d9a4e}
+  .msg-attachments{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .msg-attachment{margin:0;max-width:100%;padding:8px;background:rgba(255,255,255,.65);border:1px solid #b9d8c0;border-radius:12px}
+  .msg-attachment img{display:block;max-width:100%;width:auto;height:auto;max-height:180px;border-radius:6px;object-fit:contain}
+  .msg-attachment figcaption{max-width:240px;margin-top:5px;font-size:.72rem;line-height:1.4;overflow-wrap:anywhere;color:#4a6b52}
+  .msg-attachment-file{font-size:.8rem;color:#4a6b52}
 
   /* Welcome */
   .welcome{text-align:center;padding:80px 20px 40px;animation:up .5s}
@@ -1040,17 +1045,66 @@ function _showWelcome(){
   _E('htitle').textContent='New Conversation';
 }
 
+function _attribute(s){return _esc(String(s)).replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+function _attachmentHTML(m){
+  if(m.role!=='user'||!Array.isArray(m.attachments)||!m.attachments.length)return '';
+  var h='<div class="msg-attachments">';
+  for(var i=0;i<m.attachments.length;i++){
+    var a=m.attachments[i],name=String(a.name||'Attachment');
+    h+='<figure class="msg-attachment">';
+    // Only our bounded PNG thumbnails are accepted as persisted image sources.
+    if(typeof a.preview==='string'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(a.preview)){
+      h+='<img src="'+a.preview+'" alt="'+_attribute('Preview of '+name)+'" decoding="async">';
+    }else{
+      h+='<span class="msg-attachment-file">📎 '+_esc(name)+'</span>';
+    }
+    h+='<figcaption>'+_esc(name)+'</figcaption></figure>';
+  }
+  return h+'</div>';
+}
+
+function _imagePreview(file){
+  return new Promise(function(resolve){
+    var attachment={name:file.name,type:file.type,size:file.size};
+    if(!/^image\//.test(file.type)){resolve(attachment);return}
+    var reader=new FileReader();
+    reader.onerror=function(){resolve(attachment)};
+    reader.onload=function(){
+      var img=new Image();
+      img.onerror=function(){resolve(attachment)};
+      img.onload=function(){
+        try{
+          var scale=Math.min(1,240/Math.max(img.naturalWidth,img.naturalHeight));
+          var canvas=document.createElement('canvas');
+          canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+          canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+          var ctx=canvas.getContext('2d');
+          ctx.imageSmoothingQuality='high';
+          ctx.drawImage(img,0,0,canvas.width,canvas.height);
+          attachment.preview=canvas.toDataURL('image/png');
+        }catch(e){/* The attachment still uploads if this browser cannot preview it. */}
+        resolve(attachment);
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function _msgHTML(m){
   var av=m.role==='user'?_p.initials:'🩺';
   var lb=m.role==='user'?_p.name:'MediChat';
   var rc=m.role==='user'?'usr':'ai';
-  return '<div class="msg '+rc+'"><div class="msg-av">'+av+'</div><div class="msg-body"><span class="msg-label">'+lb+'</span><div class="msg-bub">'+_fmt(m.content)+'</div></div></div>';
+  return '<div class="msg '+rc+'"><div class="msg-av">'+av+'</div><div class="msg-body"><span class="msg-label">'+lb+'</span><div class="msg-bub">'+_fmt(m.content)+_attachmentHTML(m)+'</div></div></div>';
 }
 
 function _addMsg(m){
   var d=document.createElement('div');
   d.innerHTML=_msgHTML(m);
-  _E('msgs').appendChild(d.firstElementChild);
+  var node=d.firstElementChild;
+  _E('msgs').appendChild(node);
+  return node;
 }
 
 function _showTyping(){
@@ -1093,8 +1147,9 @@ function _callAI(userMsg, files, heartRate, convId, cb){
   Promise.all(uploadPromises).then(function(uploads){
     // Determine file paths from upload results
     var breastPath = null, skinPath = null;
-    uploads.forEach(function(u){
-      var name = (u.file_path || '').toLowerCase();
+    uploads.forEach(function(u, index){
+      // Saved paths use UUIDs; retain the original attachment name for routing.
+      var name = ((files[index] && files[index].name) || '').toLowerCase();
       var fname = name.split(/[/\\]/).pop();
       if(fname.indexOf('breast') !== -1 || fname.indexOf('mamm') !== -1){
         breastPath = u.file_path;
@@ -1200,10 +1255,19 @@ function mcSend(){
   _triageFresh=false; // conversation is underway; the next new one re-screens
   var w=_E('msgs').querySelector('.welcome');if(w)w.style.display='none';
   if(conv.msgs.length===0){conv.title=text.length>32?text.slice(0,32)+'…':text;_E('htitle').textContent=conv.title}
-  conv.msgs.push({role:'user',content:text});_addMsg({role:'user',content:text});
+  var attachedFiles=_files.slice(); // Preserve original Files for the upload pathway.
+  var userMessage={role:'user',content:text,attachments:attachedFiles.map(function(f){return {name:f.name,type:f.type,size:f.size}})};
+  conv.msgs.push(userMessage);
+  var userNode=_addMsg(userMessage);
+  // Preview generation is independent of upload; never replace the uploaded File.
+  Promise.all(attachedFiles.map(_imagePreview)).then(function(attachments){
+    userMessage.attachments=attachments;
+    var bubble=userNode.querySelector('.msg-bub');
+    if(bubble)bubble.innerHTML=_fmt(userMessage.content)+_attachmentHTML(userMessage);
+    _save();
+  });
   // Gather inputs
   var hr = null;
-  var attachedFiles=_files.slice(); // copy
   inp.value='';mcOnInput();mcClearFiles();_save();_renderSide();mcScroll();
   mcUpdSend();
   var typingEl=_showTyping();mcScroll();

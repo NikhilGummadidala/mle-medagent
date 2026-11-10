@@ -1,0 +1,87 @@
+{
+  "architecture": "models.breast_cancer.BreastCancerCNN",
+  "device": "mps",
+  "torch_version": "2.15.0",
+  "max_epochs": 50,
+  "epochs_completed": 49,
+  "best_epoch": 39,
+  "selected_by": "minimum validation binary cross entropy only",
+  "best_validation_loss": 0.6117775013335792,
+  "hyperparameters": {
+    "seed": 42,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "optimizer": "Adam",
+    "early_stopping_patience": 10
+  },
+  "heldout_test": {
+    "loss": 0.6309395147282542,
+    "accuracy": 0.6339712918660287,
+    "auroc": 0.696194089916063,
+    "confusion_matrix": [
+      [
+        141,
+        82
+      ],
+      [
+        71,
+        124
+      ]
+    ],
+    "n": 418
+  },
+  "elapsed_seconds": 305.65311670899973,
+  "confidence_definition": "max(p_malignant, 1-p_malignant); uncalibrated class score, not diagnostic accuracy or calibrated patient risk",
+  "limitations": "New locally trained research checkpoint, not team original weights. No clinical validation. MIAS is a separate out-of-domain evaluation dataset. MPS numerical determinism not guaranteed.",
+  "weights_sha256": "90bc418dea7e68c16f4c1ab13ea633597609870ac457345ad62f564eef453284",
+  "weights_path": "saved_models/breast_cancer_cnn.pt",
+  "created_at": "2026-11-02T20:59:00.748780-08:00",
+  "data": {
+    "dataset": "CBIS-DDSM",
+    "kaggle_ref": "awsaf49/cbis-ddsm-breast-cancer-image-dataset/versions/1",
+    "metadata_rows": 3568,
+    "matched_unique_full_images": 2857,
+    "excluded_unmatched_rows": 282,
+    "excluded_exact_duplicates": 42,
+    "excluded_conflicting_pixel_groups": 13,
+    "used_images": 2789,
+    "patients": 1456,
+    "split_images": {
+      "test": 418,
+      "train": 1920,
+      "validation": 451
+    },
+    "split_patients": {
+      "test": 219,
+      "train": 1018,
+      "validation": 219
+    },
+    "split_class_counts": {
+      "0": {
+        "test": 223,
+        "train": 1069,
+        "validation": 255
+      },
+      "1": {
+        "test": 195,
+        "train": 851,
+        "validation": 196
+      }
+    },
+    "mias_images_used": 0,
+    "seed": 42,
+    "split_policy": "Patient-level stratified approximately 70/15/15 across published full images; original source split preserved in row provenance but NOT an official CBIS test benchmark",
+    "preprocessing": "RGB, PIL BICUBIC resize 224x224 to match existing inference; ImageNet mean/std; full field of view, no ROI labels as inputs",
+    "label_policy": "BENIGN and BENIGN_WITHOUT_CALLBACK=0, MALIGNANT=1; any malignant abnormality within an image makes the image positive",
+    "original_notebook_sha256": "9291b3178b15d591993b4a8edd016a42d8e1520839644ee34503b7cfed66caef",
+    "source_citations": [
+      "https://doi.org/10.7937/K9/TCIA.2016.7O02S9CY",
+      "https://www.kaggle.com/datasets/awsaf49/cbis-ddsm-breast-cancer-image-dataset"
+    ]
+  },
+  "verification_malignant_probability": 0.5154541730880737,
+  "strict_state_dict_load": true,
+  "verification_split": "CBIS-DDSM internal patient-held-out test",
+  "training_script_sha256": "9e8a14910cb3e7c790691fbc92c7840ef5d356bbf9778f4422c4703c09c6df63"
+}
