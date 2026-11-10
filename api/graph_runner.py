@@ -21,6 +21,12 @@ from langgraph_multi_agent import (
 
 logger = logging.getLogger(__name__)
 
+NO_ANALYSIS_REPLY = (
+    "I can help with heart disease risk, breast scan screening, and skin lesion "
+    "analysis. Describe your symptoms or measurements, or attach an image, and "
+    "I'll route it to the right specialist."
+)
+
 # MemorySaver for per-session persistence
 _checkpointer = MemorySaver()
 
@@ -91,8 +97,10 @@ def run_graph(
     merged_measurements: dict[str, int | float | None] = {
         key: None for key in USER_MEASUREMENT_KEYS
     }
-    if heart_rate is not None:
-        merged_measurements["max_heart_rate"] = heart_rate
+    # heart_rate is the intake/resting reading. The cardiac model's
+    # max_heart_rate feature is the peak rate from an exercise stress test, so a
+    # resting value must not be fed in as that feature (a normal resting 70 bpm
+    # reads as a very poor stress test and skews the prediction toward high risk).
     if age is not None:
         merged_measurements["age"] = age
     if sex is not None:
@@ -128,7 +136,7 @@ def run_graph(
         "skin_disease_analysis": {},
         # User-facing aliases
         "user_query": message,
-        "heart_rate": merged_measurements.get("max_heart_rate"),
+        "heart_rate": heart_rate,
         "breast_scan_path": breast_scan_path,
         "skin_image_path": skin_photo_path,
         # LLM explanations
@@ -139,15 +147,29 @@ def run_graph(
 
     # Run the graph with MemorySaver thread config
     config = {"configurable": {"thread_id": conversation_id}}
+
+    # The checkpointer accumulates messages across turns, so remember how many
+    # existed before this turn and only look at what this turn added.
+    prior_count = 0
+    try:
+        snapshot = graph.get_state(config)
+        if snapshot and snapshot.values:
+            prior_count = len(snapshot.values.get("messages", []))
+    except Exception:
+        logger.exception("Could not read prior state for %s", conversation_id)
+
     result = graph.invoke(state, config)
+    turn_messages = result["messages"][prior_count:]
 
-    # Extract the latest AI message as the reply
-    ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage)]
-    reply = ai_messages[-1].content if ai_messages else "No response generated."
+    # Reply with this turn's latest AI message. When the router ends the turn
+    # without consulting anyone (greeting, thanks), there is none — never fall
+    # back to an earlier turn's report.
+    ai_messages = [m for m in turn_messages if isinstance(m, AIMessage)]
+    reply = ai_messages[-1].content if ai_messages else NO_ANALYSIS_REPLY
 
-    # Build agent-by-agent message history
+    # Build agent-by-agent message history for this turn
     agent_messages = []
-    for m in result["messages"]:
+    for m in turn_messages:
         if isinstance(m, AIMessage):
             agent_messages.append({"role": "assistant", "content": m.content})
         elif isinstance(m, HumanMessage):

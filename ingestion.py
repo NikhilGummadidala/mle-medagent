@@ -90,6 +90,32 @@ def save_uploaded_file(
     return str(save_path.resolve())
 
 
+def resolve_upload_path(
+    filepath: str | None,
+    upload_dir: Path | str = DEFAULT_UPLOAD_DIR,
+) -> str | None:
+    """
+    Return the resolved path if it names an existing supported image inside
+    ``upload_dir``; otherwise None.
+
+    Image paths reach the graph from API form fields and from LLM extraction of
+    free text, so neither can be trusted to point at a file we saved. Only files
+    in the upload directory may be read and sent to the models.
+    """
+    if not filepath:
+        return None
+    try:
+        path = Path(filepath).resolve()
+        root = Path(upload_dir).resolve()
+    except (OSError, ValueError):
+        return None
+    if not path.is_relative_to(root) or path == root:
+        return None
+    if path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS or not path.is_file():
+        return None
+    return str(path)
+
+
 # ── Base64 Encoding ──────────────────────────────────────────────────────────
 
 
@@ -212,9 +238,9 @@ def build_initial_state(
             if k in merged_measurements and v is not None:
                 merged_measurements[k] = v
 
-    # Merge heart_rate into max_heart_rate if provided
-    if heart_rate is not None:
-        merged_measurements["max_heart_rate"] = heart_rate
+    # heart_rate is a resting/current reading. It is NOT max_heart_rate (peak
+    # rate reached in an exercise stress test), so it is kept out of the model
+    # features and only surfaced as the heart_rate alias.
 
     # Build breast cancer features
     merged_breast: dict[str, float | None] = {
@@ -249,7 +275,7 @@ def build_initial_state(
         "skin_disease_analysis": {},
         # User-facing aliases
         "user_query": query,
-        "heart_rate": merged_measurements.get("max_heart_rate"),
+        "heart_rate": heart_rate,
         "breast_scan_path": merged_files.get("breast_scan_path"),
         "skin_image_path": merged_files.get("skin_photo_path"),
         # LLM explanations (initially empty)

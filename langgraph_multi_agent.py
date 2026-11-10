@@ -17,7 +17,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, add_messages
 from pydantic import BaseModel, Field
 
-from ingestion import encode_image_to_base64, get_image_mime_type
+from ingestion import encode_image_to_base64, get_image_mime_type, resolve_upload_path
 from models.heart_disease import predict as predict_heart_disease
 from models.breast_cancer import predict as predict_breast_cancer
 from models.skin_disease import predict as predict_skin_disease
@@ -90,7 +90,7 @@ class MedAgentState(TypedDict):
 
     # ── User-Facing Aliases (clean API surface) ──
     user_query: str                                      # Alias for raw_user_query
-    heart_rate: int | None                               # Convenience: extracted max_heart_rate
+    heart_rate: int | None                               # Resting/current heart rate (NOT a model feature)
     breast_scan_path: str | None                         # Extracted from file_references
     skin_image_path: str | None                          # Extracted from file_references
 
@@ -232,6 +232,7 @@ Rules:
 - Convert text descriptions to numerical values (e.g., "male" -> sex=1, "female" -> sex=0)
 - If the user says "chest pain type 2", set chest_pain_type=2
 - If blood pressure is "140/90", use 140 for resting_blood_pressure
+- max_heart_rate is ONLY the peak heart rate reached during an exercise/stress test. A resting or current heart rate or pulse (e.g. "my heart rate is 90") is NOT max_heart_rate: leave max_heart_rate null in that case
 - Only extract what is explicitly stated; do not infer or assume"""
 
 EXTRACTOR_USER_PROMPT = """Extract structured medical data from this patient message:
@@ -262,11 +263,16 @@ def input_extraction_node(state: MedAgentState) -> dict[str, Any]:
         if v is not None:
             merged_breast_features[k] = v
 
+    # Paths named in free text are only honoured if they point at a file we saved
+    # in the upload directory; anything else (arbitrary server paths, LLM
+    # hallucinations) is dropped.
     merged_files = dict(state.get("file_references", {}))
-    if response.breast_scan_path:
-        merged_files["breast_scan_path"] = response.breast_scan_path
-    if response.skin_photo_path:
-        merged_files["skin_photo_path"] = response.skin_photo_path
+    extracted_breast = resolve_upload_path(response.breast_scan_path)
+    extracted_skin = resolve_upload_path(response.skin_photo_path)
+    if extracted_breast:
+        merged_files["breast_scan_path"] = extracted_breast
+    if extracted_skin:
+        merged_files["skin_photo_path"] = extracted_skin
 
     return {
         "user_measurements": merged_measurements,
@@ -274,7 +280,7 @@ def input_extraction_node(state: MedAgentState) -> dict[str, Any]:
         "file_references": merged_files,
         # User-facing aliases
         "user_query": query,
-        "heart_rate": merged_measurements.get("max_heart_rate"),
+        "heart_rate": state.get("heart_rate"),
         "breast_scan_path": merged_files.get("breast_scan_path"),
         "skin_image_path": merged_files.get("skin_photo_path"),
     }

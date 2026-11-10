@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from api.schemas import (
     ChatResponse,
@@ -21,12 +22,12 @@ from api.schemas import (
 )
 from api.auth import get_current_user, login_user, register_user
 from api.graph_runner import create_conversation, get_history, run_graph
-from ingestion import save_uploaded_file
+from ingestion import DEFAULT_UPLOAD_DIR, resolve_upload_path, save_uploaded_file
 
 router = APIRouter()
 auth_router = APIRouter()
 
-UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOAD_DIR = DEFAULT_UPLOAD_DIR
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
@@ -40,6 +41,19 @@ def _validate_image(filename: str) -> None:
             status_code=400,
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
+
+
+def _validate_upload_path(field: str, value: str | None) -> str | None:
+    """Accept a client-supplied image path only if it is a file we saved via /upload."""
+    if not value:
+        return None
+    resolved = resolve_upload_path(value, UPLOAD_DIR)
+    if resolved is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field}: must be a file_path returned by /api/upload.",
+        )
+    return resolved
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -61,6 +75,9 @@ async def chat(
     Supports both multipart/form-data (with optional file attachment)
     and JSON payloads.
     """
+    breast_scan_path = _validate_upload_path("breast_scan_path", breast_scan_path)
+    skin_photo_path = _validate_upload_path("skin_photo_path", skin_photo_path)
+
     # Handle optional file attachment
     if file and file.filename:
         _validate_image(file.filename)
@@ -75,8 +92,12 @@ async def chat(
             else:
                 skin_photo_path = saved_path
 
+    # run_graph makes blocking Ollama/model calls that take tens of seconds;
+    # run it in a worker thread so it doesn't stall the event loop (and every
+    # other request) for the duration.
     try:
-        result = run_graph(
+        result = await run_in_threadpool(
+            run_graph,
             conversation_id=conversation_id,
             message=message,
             heart_rate=heart_rate,
