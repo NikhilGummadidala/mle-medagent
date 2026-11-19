@@ -1,2 +1,6 @@
 -r requirements.txt
-playwright>=1.49
+pytest>=8
+httpx>=0.27          # FastAPI TestClient
+pandas>=2.0          # also needed by the training and evaluation scripts
+pyarrow>=15          # scripts/evaluate_skin_model.py
+playwright>=1.49     # tests/preview_browser_check.py only

@@ -1,14 +1,19 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .env
+
+# Runtime data: user database, JWT signing key, patient uploads
+data/
 uploads/
-data/users.db*
+
+# Downloaded third-party weights (fetch with scripts/download_models.py)
+saved_models/mammoscreen/
+saved_models/mammo_crop/
+saved_models/skin_vit/
+
 results/
 research_data/
 research_training/
 .local-runtime/
-saved_models/*.pt
-saved_models/*.metadata.json
-!saved_models/breast_cancer_cnn.pt
-!saved_models/breast_cancer_cnn.metadata.json

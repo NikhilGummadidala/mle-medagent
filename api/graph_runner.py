@@ -1,11 +1,15 @@
 """
-Session-aware graph runner. Wraps the LangGraph compiled graph
-with MemorySaver persistence for multi-turn conversations.
+Session-aware graph runner. Wraps the compiled LangGraph with a checkpointer
+so measurements, uploaded images and message history persist across the turns
+of a conversation. Conversations are namespaced by user id.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import urllib.error
+import urllib.request
 import uuid
 from typing import Any
 
@@ -13,51 +17,49 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from langgraph_multi_agent import (
-    BREAST_CANCER_FEATURE_KEYS,
-    USER_MEASUREMENT_KEYS,
     CLINICAL_DISCLAIMER,
+    OLLAMA_BASE_URL,
     compile_medagent_graph,
 )
+from models.schema import validate_heart_measurements
+from safety import scan_red_flags
 
 logger = logging.getLogger(__name__)
 
-NO_ANALYSIS_REPLY = (
-    "I can help with heart disease risk, breast scan screening, and skin lesion "
-    "analysis. Describe your symptoms or measurements, or attach an image, and "
-    "I'll route it to the right specialist."
+LLM_OFFLINE_NOTE = (
+    "*Note: the language model is offline, so plain-language explanations and general "
+    "answers are unavailable. Model results above are unaffected.*"
 )
 
-# MemorySaver for per-session persistence
+# In-memory persistence: conversations are lost when the server restarts.
 _checkpointer = MemorySaver()
-
-# Compiled graph (singleton)
 _graph = None
 
 
 def _get_graph():
-    """Lazy-initialize the compiled LangGraph with MemorySaver."""
     global _graph
     if _graph is None:
         _graph = compile_medagent_graph(checkpointer=_checkpointer)
     return _graph
 
 
-def _check_ollama() -> None:
-    """Raise a clear error if the Ollama server is not reachable."""
-    import urllib.request
-    import urllib.error
+def llm_available() -> bool:
+    """True if the Ollama server answers."""
+    if os.environ.get("MEDAGENT_SKIP_LLM_CHECK"):
+        return True
     try:
-        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", method="GET")
-        urllib.request.urlopen(req, timeout=3)
-    except (urllib.error.URLError, ConnectionRefusedError, OSError) as e:
-        raise ConnectionError(
-            "Ollama server is not running. "
-            "Start it by running: ollama serve\n"
-            "Then make sure the model is pulled: ollama pull llama3.2"
-        ) from e
+        urllib.request.urlopen(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def _config(user_id: int, conversation_id: str) -> dict[str, Any]:
+    return {"configurable": {"thread_id": f"{int(user_id)}:{conversation_id}"}}
 
 
 def run_graph(
+    user_id: int,
     conversation_id: str,
     message: str,
     heart_rate: int | None = None,
@@ -69,151 +71,77 @@ def run_graph(
     resting_blood_pressure: int | None = None,
 ) -> dict[str, Any]:
     """
-    Invoke the MedAgent graph for a given conversation.
+    Run one conversation turn.
 
-    Parameters
-    ----------
-    conversation_id : str
-        Session identifier for multi-turn persistence.
-    message : str
-        The patient's latest message.
-    heart_rate : int | None
-        Optional heart rate in BPM from dedicated input.
-    breast_scan_path : str | None
-        Optional path to a breast scan image.
-    skin_photo_path : str | None
-        Optional path to a skin lesion photo.
-
-    Returns
-    -------
-    dict with keys: reply, routed_to, heart_disease, breast_cancer, skin_disease,
-                     messages, disclaimer
+    Image paths must already be resolved to files this user uploaded. Returns a
+    dict with keys: reply, routed_to, heart_disease, breast_cancer,
+    skin_disease, messages (this turn's specialist steps then the reply),
+    disclaimer.
     """
-    _check_ollama()
+    intake, _ = validate_heart_measurements({
+        "age": age, "sex": sex, "resting_blood_pressure": resting_blood_pressure,
+    })
+    new_images = [
+        name for name, path in
+        (("breast_cancer", breast_scan_path), ("skin_disease", skin_photo_path)) if path
+    ]
 
-    graph = _get_graph()
-
-    # Build initial state with all required fields
-    merged_measurements: dict[str, int | float | None] = {
-        key: None for key in USER_MEASUREMENT_KEYS
-    }
-    # heart_rate is the intake/resting reading. The cardiac model's
-    # max_heart_rate feature is the peak rate from an exercise stress test, so a
-    # resting value must not be fed in as that feature (a normal resting 70 bpm
-    # reads as a very poor stress test and skews the prediction toward high risk).
-    if age is not None:
-        merged_measurements["age"] = age
-    if sex is not None:
-        merged_measurements["sex"] = sex
-    if resting_blood_pressure is not None:
-        merged_measurements["resting_blood_pressure"] = resting_blood_pressure
-
-    merged_breast: dict[str, float | None] = {
-        key: None for key in BREAST_CANCER_FEATURE_KEYS
-    }
-
-    file_refs: dict[str, str | None] = {
-        "breast_scan_path": breast_scan_path,
-        "skin_photo_path": skin_photo_path,
-    }
-
-    # The clipboard rides along with the first message so the router and synthesis
-    # nodes see it; raw_user_query stays the patient's own words for extraction.
-    initial_text = message
-    if patient_context:
-        initial_text = f"{patient_context}\n\n---\n\nPatient's question: {message}"
-
-    state = {
-        # Detailed fields
+    turn = {
+        "messages": [HumanMessage(content=message)],
+        # Merged into what the conversation already knows (see merge_known).
+        "user_measurements": intake,
+        "breast_cancer_features": {},
+        "file_references": {
+            "breast_scan_path": breast_scan_path, "skin_photo_path": skin_photo_path,
+        },
+        # Fresh every turn.
         "raw_user_query": message,
-        "user_measurements": merged_measurements,
-        "breast_cancer_features": merged_breast,
-        "file_references": file_refs,
-        "next_agent": "",
-        "messages": [HumanMessage(content=initial_text)],
+        "patient_context": patient_context,
+        "heart_rate": heart_rate,
+        "new_images": new_images,
+        "new_measurements": [],
+        "red_flags": scan_red_flags(message, patient_context),
+        "pending": [],
+        "consulted": [],
+        "intent": {},
+        "steps": [],
         "heart_disease_analysis": {},
         "breast_cancer_analysis": {},
         "skin_disease_analysis": {},
-        # User-facing aliases
-        "user_query": message,
-        "heart_rate": heart_rate,
-        "breast_scan_path": breast_scan_path,
-        "skin_image_path": skin_photo_path,
-        # LLM explanations
         "heart_diagnosis": None,
         "cancer_diagnosis": None,
         "skin_diagnosis": None,
+        "next_agent": "",
     }
 
-    # Run the graph with MemorySaver thread config
-    config = {"configurable": {"thread_id": conversation_id}}
+    online = llm_available()
+    result = _get_graph().invoke(turn, _config(user_id, conversation_id))
 
-    # The checkpointer accumulates messages across turns, so remember how many
-    # existed before this turn and only look at what this turn added.
-    prior_count = 0
-    try:
-        snapshot = graph.get_state(config)
-        if snapshot and snapshot.values:
-            prior_count = len(snapshot.values.get("messages", []))
-    except Exception:
-        logger.exception("Could not read prior state for %s", conversation_id)
+    reply = result["messages"][-1].content
+    if not online:
+        reply = f"{reply}\n\n{LLM_OFFLINE_NOTE}"
 
-    result = graph.invoke(state, config)
-    turn_messages = result["messages"][prior_count:]
-
-    # Reply with this turn's latest AI message. When the router ends the turn
-    # without consulting anyone (greeting, thanks), there is none — never fall
-    # back to an earlier turn's report.
-    ai_messages = [m for m in turn_messages if isinstance(m, AIMessage)]
-    reply = ai_messages[-1].content if ai_messages else NO_ANALYSIS_REPLY
-
-    # Build agent-by-agent message history for this turn
-    agent_messages = []
-    for m in turn_messages:
-        if isinstance(m, AIMessage):
-            agent_messages.append({"role": "assistant", "content": m.content})
-        elif isinstance(m, HumanMessage):
-            agent_messages.append({"role": "user", "content": m.content})
-
+    steps = [{"role": "assistant", "content": step} for step in result.get("steps", [])]
     return {
         "reply": reply,
-        "routed_to": result.get("next_agent", "unknown"),
+        "routed_to": result.get("next_agent") or "unknown",
         "heart_disease": result.get("heart_disease_analysis"),
         "breast_cancer": result.get("breast_cancer_analysis"),
         "skin_disease": result.get("skin_disease_analysis"),
-        "messages": agent_messages,
+        "messages": [*steps, {"role": "assistant", "content": reply}],
         "disclaimer": CLINICAL_DISCLAIMER,
     }
 
 
-def get_history(conversation_id: str) -> list[dict[str, str]]:
-    """
-    Return the conversation history for a given session.
-
-    Returns
-    -------
-    list of {"role": "user"|"assistant", "content": "..."}
-    """
-    graph = _get_graph()
-    config = {"configurable": {"thread_id": conversation_id}}
-
-    # Try to get the latest state from the checkpointer
-    try:
-        state_snapshot = graph.get_state(config)
-        if state_snapshot and state_snapshot.values:
-            messages = state_snapshot.values.get("messages", [])
-            return [
-                {
-                    "role": "user" if isinstance(m, HumanMessage) else "assistant",
-                    "content": m.content,
-                }
-                for m in messages
-                if isinstance(m, (HumanMessage, AIMessage))
-            ]
-    except Exception:
-        pass
-
-    return []
+def get_history(user_id: int, conversation_id: str) -> list[dict[str, str]]:
+    """The conversation as ``[{"role": "user"|"assistant", "content": ...}]``."""
+    snapshot = _get_graph().get_state(_config(user_id, conversation_id))
+    messages = snapshot.values.get("messages", []) if snapshot and snapshot.values else []
+    return [
+        {"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.content}
+        for m in messages
+        if isinstance(m, (HumanMessage, AIMessage))
+    ]
 
 
 def create_conversation() -> str:

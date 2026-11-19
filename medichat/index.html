@@ -385,6 +385,21 @@
     .triage-h{font-size:1.2rem}
     .triage-emg-h{font-size:1.3rem}
   }
+.md-h{font-weight:700;font-size:1.05em;margin:4px 0 2px}
+.md-gap{height:8px}
+.msg-bub hr,.agent-step-body hr{border:none;border-top:1px solid rgba(0,0,0,.12);margin:10px 0}
+.msg-bub ul,.agent-step-body ul{margin:4px 0 4px 20px;padding:0}
+.file-chip-kind{font:inherit;font-size:12px;padding:2px 4px;border:1px solid rgba(0,0,0,.2);border-radius:6px;background:#fff;margin-left:6px}
+.hp-overlay{display:none;position:fixed;inset:0;background:rgba(15,40,22,.35);z-index:60;align-items:center;justify-content:center;padding:16px}
+.hp-overlay.open{display:flex}
+.hp-card{background:#fff;border:1px solid #d8e8da;border-radius:20px;width:680px;max-width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.hp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 22px 12px;border-bottom:1px solid #e6f0e8}
+.hp-title{font-size:1.1rem;font-weight:700;color:#1a2e1f}
+.hp-sub{font-size:.8rem;color:#6b8a72;line-height:1.5;margin-top:4px}
+.hp-form{overflow-y:auto;padding:16px 22px 20px}
+.hp-note{font-size:.76rem;color:#8aa890;line-height:1.5;margin:0 0 8px}
+.hp-empty{font-size:.85rem;color:#8aa890;padding:6px 0}
+.hp-row .info-val{text-align:right;white-space:pre-wrap;word-break:break-word}
 </style>
 </head>
 <body>
@@ -440,174 +455,12 @@
     </div>
   </header>
 
-  <!-- Patient Intake -->
-  <div class="intake-wrap" id="intakeWrap">
-    <div class="intake-card">
-      <button class="intake-head" type="button" onclick="mcToggleIntake()">
-        <span class="intake-head-l"><span class="intake-head-ic">🩺</span>Patient Information</span>
-        <span class="intake-head-r"><span class="intake-status" id="intakeStatus">Not provided</span><span class="intake-chev" id="intakeChev">▴</span></span>
-      </button>
-      <div class="intake-body open" id="intakeBody">
-        <p class="intake-sub">Sharing your details gives the assistant better context for every reply. Only <strong>Age</strong> and <strong>Current Symptoms</strong> are required — everything else is optional and can be edited anytime.</p>
-        <form class="intake-form" id="intakeForm" novalidate onsubmit="return mcSubmitIntake()">
-          <div class="irow">
-            <div class="ifield">
-              <label for="iAge">Age *</label>
-              <input type="number" id="iAge" min="0" max="130" placeholder="e.g., 34">
-              <span class="ierr" id="errAge"></span>
-            </div>
-            <div class="ifield">
-              <label for="iSex">Sex</label>
-              <select id="iSex" onchange="mcOnSexChange()">
-                <option value="">Select…</option>
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-                <option>Prefer not to say</option>
-              </select>
-            </div>
-            <div class="ifield">
-              <label for="iHeight">Height (cm)</label>
-              <input type="number" id="iHeight" min="1" placeholder="e.g., 170">
-              <span class="ierr" id="errHeight"></span>
-            </div>
-            <div class="ifield">
-              <label for="iWeight">Weight (kg)</label>
-              <input type="number" id="iWeight" min="1" placeholder="e.g., 65">
-              <span class="ierr" id="errWeight"></span>
-            </div>
-          </div>
-          <div class="ifield" id="pregField" style="display:none">
-            <label for="iPreg">Pregnancy status</label>
-            <select id="iPreg">
-              <option value="">Select…</option>
-              <option>Not pregnant</option>
-              <option>Pregnant — 1st trimester</option>
-              <option>Pregnant — 2nd trimester</option>
-              <option>Pregnant — 3rd trimester</option>
-              <option>Prefer not to say</option>
-            </select>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iDur">Duration of symptoms</label>
-              <input type="text" id="iDur" placeholder="e.g., 3 days">
-            </div>
-            <div class="ifield">
-              <label for="iPain">Pain level — <span class="pain-val" id="painVal">0</span>/10</label>
-              <input type="range" id="iPain" min="0" max="10" step="1" value="0" oninput="mcOnPain(this.value)">
-            </div>
-          </div>
-          <div class="ifield">
-            <label for="iSymp">Current symptoms *</label>
-            <textarea id="iSymp" rows="3" placeholder="Describe your current symptoms…"></textarea>
-            <span class="ierr" id="errSymp"></span>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iMedCond">Existing medical conditions</label>
-              <textarea id="iMedCond" rows="2" placeholder="e.g., hypertension, type 2 diabetes"></textarea>
-            </div>
-            <div class="ifield">
-              <label for="iMeds">Current medications</label>
-              <textarea id="iMeds" rows="2" placeholder="e.g., metformin 500 mg twice daily"></textarea>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iDrugAll">Drug allergies</label>
-              <input type="text" id="iDrugAll" placeholder="e.g., penicillin">
-            </div>
-            <div class="ifield">
-              <label for="iFoodAll">Food allergies</label>
-              <input type="text" id="iFoodAll" placeholder="e.g., peanuts">
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iSurg">Recent surgeries</label>
-              <textarea id="iSurg" rows="2" placeholder="e.g., appendectomy (2021)"></textarea>
-            </div>
-            <div class="ifield">
-              <label for="iFam">Family medical history</label>
-              <textarea id="iFam" rows="2" placeholder="e.g., heart disease in father"></textarea>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iSmoke">Smoking status</label>
-              <select id="iSmoke">
-                <option value="">Select…</option>
-                <option>Never</option>
-                <option>Former smoker</option>
-                <option>Current smoker</option>
-                <option>Prefer not to say</option>
-              </select>
-            </div>
-            <div class="ifield">
-              <label for="iAlcohol">Alcohol use</label>
-              <select id="iAlcohol">
-                <option value="">Select…</option>
-                <option>None</option>
-                <option>Rarely</option>
-                <option>Occasionally</option>
-                <option>Regularly</option>
-                <option>Prefer not to say</option>
-              </select>
-            </div>
-          </div>
-          <div class="irow">
-            <div class="ifield">
-              <label for="iRecre">Recreational drug use</label>
-              <input type="text" id="iRecre" placeholder="e.g., None">
-            </div>
-            <div class="ifield">
-              <label for="iTravel">Recent travel</label>
-              <input type="text" id="iTravel" placeholder="e.g., None / Mexico 2 weeks ago">
-            </div>
-          </div>
-          <div class="irow irow-3">
-            <div class="ifield">
-              <label for="iTemp">Temperature (°C) <span class="opt">optional</span></label>
-              <input type="number" id="iTemp" min="30" max="45" step="0.1" placeholder="e.g., 37.2">
-              <span class="ierr" id="errTemp"></span>
-            </div>
-            <div class="ifield">
-              <label for="iBP">Blood pressure <span class="opt">optional</span></label>
-              <input type="text" id="iBP" placeholder="e.g., 120/80">
-            </div>
-            <div class="ifield">
-              <label for="iHR">Heart rate (bpm) <span class="opt">optional</span></label>
-              <input type="number" id="iHR" min="20" max="250" placeholder="e.g., 72">
-              <span class="ierr" id="errHR"></span>
-            </div>
-          </div>
-          <div class="intake-actions">
-            <button type="button" class="btn-danger-intake" onclick="mcClearIntake()">Clear Form</button>
-            <div class="intake-submit-row">
-              <button type="button" class="btn-cancel" onclick="mcCancelIntake()">Cancel</button>
-              <button type="submit" class="btn-save">Save &amp; Collapse</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-    <div class="pt-summary" id="ptSummary">
-      <div class="pt-summary-ic">🩺</div>
-      <div class="pt-summary-info">
-        <div class="pt-summary-title">Patient on file <span class="pt-summary-badge">context ready</span></div>
-        <div class="pt-summary-line" id="ptSummaryLine"></div>
-      </div>
-      <button type="button" class="chip-btn" onclick="mcEditIntake()">✎ Edit</button>
-    </div>
-  </div>
-
   <div class="msgs" id="msgs"></div>
 
   <button class="scroll-btn" id="scrollBtn" onclick="mcScroll()">↓</button>
 
   <div class="input-area">
-    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.pdf,.txt" style="display:none" onchange="mcOnFiles(event)">
+    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" style="display:none" onchange="mcOnFiles(event)">
     <div class="urgent-banner" id="urgentBanner">⏰ You marked this as needing attention today. Consider contacting urgent care or your doctor's office alongside anything you read here — and call 911 if it worsens.</div>
     <div class="input-wrap">
       <button class="attach-btn" id="attachBtn" title="Attach files" onclick="_E('fileInput').click()">
@@ -638,18 +491,15 @@
   <div class="rpanel-body">
     <div class="prof-avatar" id="profAvatar">U</div>
     <div class="prof-name" id="profName">Patient</div>
-    <div class="prof-email" id="profEmail">patient@clinic.com</div>
-    <div class="prof-edit-wrap"><button class="chip-btn" onclick="mcEditProfile()">✎ Edit Profile</button></div>
     <div class="section">
-      <div class="section-label">Personal Information</div>
-      <div class="info-row"><span>Name</span><span class="info-val" id="fieldName">Patient</span><button class="edit-link" onclick="mcEditField('name')">Edit</button></div>
-      <div class="info-row"><span>Email</span><span class="info-val" id="fieldEmail">patient@clinic.com</span><button class="edit-link" onclick="mcEditField('email')">Edit</button></div>
-      <div class="info-row"><span>Specialty</span><span class="info-val" id="fieldSpecialty">General</span><button class="edit-link" onclick="mcEditField('specialty')">Edit</button></div>
-      <div class="info-row"><span>Institution</span><span class="info-val" id="fieldInstitution">City Clinic</span><button class="edit-link" onclick="mcEditField('institution')">Edit</button></div>
+      <div class="section-label">Health information</div>
+      <p class="hp-note">Saved with your account and shared with the assistant in every chat. Update it whenever something changes.</p>
+      <div id="hpSummary"></div>
+      <div class="prof-edit-wrap"><button class="chip-btn" id="hpEditBtn" onclick="mcOpenHealth(false)">✎ Edit health information</button></div>
     </div>
     <div class="section">
       <div class="section-label">Account</div>
-      <div class="info-row"><span>Member since</span><span class="info-val">July 2026</span></div>
+      <div class="info-row"><span>Member since</span><span class="info-val" id="memberSince">—</span></div>
       <div class="info-row"><span>Total conversations</span><span class="info-val" id="totalConvs">0</span></div>
     </div>
   </div>
@@ -669,30 +519,7 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-label">AI Model</div>
-      <div class="set-row">
-        <div><div class="set-label">Model</div><div class="set-desc">Select the AI model for responses</div></div>
-        <select class="set-select" id="modelSelect" onchange="mcSetModel(this.value)">
-          <option value="claude">Claude (Recommended)</option>
-          <option value="gpt4">GPT-4</option>
-          <option value="local">Local LLM</option>
-        </select>
-      </div>
-      <div class="set-row">
-        <div><div class="set-label">Temperature</div><div class="set-desc">Response creativity (0-1)</div></div>
-        <select class="set-select" id="tempSelect" onchange="mcSetTemp(this.value)">
-          <option value="0.3">0.3 — Precise</option>
-          <option value="0.7" selected>0.7 — Balanced</option>
-          <option value="1.0">1.0 — Creative</option>
-        </select>
-      </div>
-    </div>
-    <div class="section">
       <div class="section-label">Preferences</div>
-      <div class="set-row">
-        <div><div class="set-label">Stream responses</div><div class="set-desc">Show text as it's generated</div></div>
-        <label class="toggle"><input type="checkbox" id="streamToggle" checked onchange="mcToggleStream(this.checked)"><span class="track"><span class="thumb"></span></span></label>
-      </div>
       <div class="set-row">
         <div><div class="set-label">Auto-save conversations</div><div class="set-desc">Save every 3 seconds</div></div>
         <label class="toggle"><input type="checkbox" id="autoSaveToggle" checked onchange="mcToggleAutoSave(this.checked)"><span class="track"><span class="thumb"></span></span></label>
@@ -704,28 +531,141 @@
     </div>
     <div class="section">
       <div class="section-label">Privacy & Data</div>
-      <div class="set-row">
-        <div><div class="set-label">Share usage data</div><div class="set-desc">Help improve MediChat</div></div>
-        <label class="toggle"><input type="checkbox" id="dataToggle" onchange="mcToggleData(this.checked)"><span class="track"><span class="thumb"></span></span></label>
-      </div>
       <button class="btn-danger" onclick="mcClearAllData()">Clear All Conversation Data</button>
     </div>
     <div class="section">
       <div class="section-label">About</div>
-      <div class="about-text"><strong>MediChat v1.0</strong><br>AI-powered medical assistant for healthcare professionals.<br>Built with ❤️ for better patient care.</div>
+      <div class="about-text"><strong>MediChat v1.0</strong><br>AI health assistant prototype. Not a medical device.<br>Built with ❤️ for better patient care.</div>
     </div>
   </div>
 </div>
 
-<!-- Edit Modal -->
-<div class="modal-overlay" id="editOverlay" onclick="mcCloseEdit()"></div>
-<div class="modal" id="editModal">
-  <h3 class="modal-title" id="editModalTitle">Edit Field</h3>
-  <p class="modal-desc">Update your profile information</p>
-  <input class="modal-input" id="editModalInput" placeholder="Enter value...">
-  <div class="modal-btns">
-    <button class="btn-cancel" onclick="mcCloseEdit()">Cancel</button>
-    <button class="btn-save" onclick="mcSaveEdit()">Save</button>
+<!-- Health information (shown after sign-up, edited from the Profile panel) -->
+<div class="hp-overlay" id="hpOverlay">
+  <div class="hp-card">
+    <div class="hp-head">
+      <div>
+        <div class="hp-title" id="hpTitle">Your health information</div>
+        <div class="hp-sub" id="hpSub"></div>
+      </div>
+      <button class="rpanel-close" id="hpClose" type="button" onclick="mcCloseHealth()">&times;</button>
+    </div>
+    <form class="intake-form hp-form" id="hpForm" novalidate onsubmit="return mcSaveHealth()">
+      <div class="irow">
+        <div class="ifield">
+          <label for="hAge">Age *</label>
+          <input type="number" id="hAge" min="0" max="130" placeholder="e.g., 34">
+          <span class="ierr" id="errAge"></span>
+        </div>
+        <div class="ifield">
+          <label for="hSex">Sex</label>
+          <select id="hSex" onchange="mcOnSexChange()">
+            <option value="">Select…</option>
+            <option>Male</option>
+            <option>Female</option>
+            <option>Other</option>
+            <option>Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+      <div class="irow">
+        <div class="ifield">
+          <label for="hHeight">Height (cm) <span class="opt">optional</span></label>
+          <input type="number" id="hHeight" min="1" placeholder="e.g., 170">
+          <span class="ierr" id="errHeight"></span>
+        </div>
+        <div class="ifield">
+          <label for="hWeight">Weight (kg) <span class="opt">optional</span></label>
+          <input type="number" id="hWeight" min="1" placeholder="e.g., 65">
+          <span class="ierr" id="errWeight"></span>
+        </div>
+      </div>
+      <div class="ifield" id="pregField" style="display:none">
+        <label for="hPreg">Pregnancy status</label>
+        <select id="hPreg">
+          <option value="">Select…</option>
+          <option>Not pregnant</option>
+          <option>Pregnant — 1st trimester</option>
+          <option>Pregnant — 2nd trimester</option>
+          <option>Pregnant — 3rd trimester</option>
+          <option>Prefer not to say</option>
+        </select>
+      </div>
+      <div class="irow">
+        <div class="ifield">
+          <label for="hCond">Medical conditions</label>
+          <textarea id="hCond" rows="2" maxlength="1000" placeholder="e.g., hypertension, type 2 diabetes"></textarea>
+        </div>
+        <div class="ifield">
+          <label for="hMeds">Regular medications</label>
+          <textarea id="hMeds" rows="2" maxlength="1000" placeholder="e.g., metformin 500 mg twice daily"></textarea>
+        </div>
+      </div>
+      <div class="irow">
+        <div class="ifield">
+          <label for="hDrugAll">Drug allergies</label>
+          <input type="text" id="hDrugAll" maxlength="1000" placeholder="e.g., penicillin">
+        </div>
+        <div class="ifield">
+          <label for="hFoodAll">Food allergies</label>
+          <input type="text" id="hFoodAll" maxlength="1000" placeholder="e.g., peanuts">
+        </div>
+      </div>
+      <div class="irow">
+        <div class="ifield">
+          <label for="hSurg">Past surgeries</label>
+          <textarea id="hSurg" rows="2" maxlength="1000" placeholder="e.g., appendectomy (2021)"></textarea>
+        </div>
+        <div class="ifield">
+          <label for="hFam">Family medical history</label>
+          <textarea id="hFam" rows="2" maxlength="1000" placeholder="e.g., heart disease in father"></textarea>
+        </div>
+      </div>
+      <div class="irow irow-3">
+        <div class="ifield">
+          <label for="hSmoke">Smoking</label>
+          <select id="hSmoke">
+            <option value="">Select…</option>
+            <option>Never</option>
+            <option>Former smoker</option>
+            <option>Current smoker</option>
+            <option>Prefer not to say</option>
+          </select>
+        </div>
+        <div class="ifield">
+          <label for="hAlcohol">Alcohol</label>
+          <select id="hAlcohol">
+            <option value="">Select…</option>
+            <option>None</option>
+            <option>Rarely</option>
+            <option>Occasionally</option>
+            <option>Regularly</option>
+            <option>Prefer not to say</option>
+          </select>
+        </div>
+        <div class="ifield">
+          <label for="hRecre">Recreational drugs</label>
+          <input type="text" id="hRecre" maxlength="240" placeholder="e.g., None">
+        </div>
+      </div>
+      <div class="irow">
+        <div class="ifield">
+          <label for="hBP">Usual blood pressure <span class="opt">optional</span></label>
+          <input type="text" id="hBP" maxlength="12" placeholder="e.g., 120/80">
+          <span class="ierr" id="errBP"></span>
+        </div>
+        <div class="ifield">
+          <label for="hHR">Resting heart rate (bpm) <span class="opt">optional</span></label>
+          <input type="number" id="hHR" min="20" max="250" placeholder="e.g., 72">
+          <span class="ierr" id="errHR"></span>
+        </div>
+      </div>
+      <span class="ierr" id="hpError"></span>
+      <div class="intake-actions">
+        <button type="button" class="btn-cancel" id="hpSkip" onclick="mcSkipHealth()">Skip for now</button>
+        <button type="submit" class="btn-save" id="hpSave">Save</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -875,10 +815,10 @@
       <div class="auth-title">Create account</div>
       <div class="auth-desc">Register to start using MediChat</div>
       <div class="auth-input-wrap">
-        <input class="auth-input" id="regUser" placeholder="Username (min 3 characters)" autocomplete="username">
+        <input class="auth-input" id="regUser" placeholder="Username or email (no spaces)" autocomplete="username">
       </div>
       <div class="auth-input-wrap">
-        <input class="auth-input" id="regPass" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password">
+        <input class="auth-input" id="regPass" type="password" placeholder="Password (min 8 characters)" autocomplete="new-password">
       </div>
       <div class="auth-input-wrap">
         <input class="auth-input" id="regPass2" type="password" placeholder="Confirm password" autocomplete="new-password">
@@ -898,6 +838,25 @@ var _user = null;
 function _apiBaseUrl() { return ''; }
 
 // ────── AUTH FUNCTIONS ──────
+// Turn an API error body into a sentence. Validation errors arrive as a list
+// of objects, which would otherwise display as "[object Object]".
+var _FIELD_NAMES={username:'Username',password:'Password',age:'Age',blood_pressure:'Blood pressure',resting_heart_rate:'Resting heart rate',height_cm:'Height',weight_kg:'Weight',message:'Message'};
+function _apiError(e,fallback){
+  var d=e&&e.detail;
+  if(typeof d==='string')return d;
+  if(Array.isArray(d)&&d.length){
+    var out=[];
+    for(var i=0;i<d.length;i++){
+      var loc=d[i].loc||[],field=String(loc[loc.length-1]||''),msg=String(d[i].msg||'is not valid');
+      if(d[i].type==='string_pattern_mismatch')msg='contains characters that are not allowed';
+      msg=msg.replace(/^String should /,'should ').replace(/^Input should /,'should ').replace(/^Value error, /,'');
+      out.push((_FIELD_NAMES[field]||field||'Input')+' '+msg);
+    }
+    return out.join('. ');
+  }
+  return fallback;
+}
+
 function authShowRegister(){
   _E('loginForm').style.display='none';
   _E('registerForm').style.display='block';
@@ -917,11 +876,11 @@ function authLogin(){
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({username:u,password:p})
   }).then(function(r){
-    if(!r.ok) return r.json().then(function(e){throw new Error(e.detail||'Login failed')});
+    if(!r.ok) return r.json().then(function(e){throw new Error(_apiError(e,'Login failed'))});
     return r.json();
   }).then(function(data){
     _token=data.access_token;localStorage.setItem('mcf_token',_token);
-    _user=data.user;authHide();_renderProfile();_renderSide();_openIntake(true);
+    _user=data.user;_onAuthed(false);
   }).catch(function(e){
     _E('authError').textContent=e.message;
     btn.disabled=false;btn.textContent='Sign In';
@@ -931,17 +890,20 @@ function authLogin(){
 function authRegister(){
   var u=_E('regUser').value.trim(), p=_E('regPass').value, p2=_E('regPass2').value;
   if(!u||!p||!p2){_E('authError2').textContent='Please fill in all fields';return}
+  if(u.length<3||u.length>64||!/^[A-Za-z0-9_.@+-]+$/.test(u)){_E('authError2').textContent='Username must be 3–64 characters: letters, numbers and _ . - @ + only, no spaces';return}
+  if(p.length<8){_E('authError2').textContent='Password must be at least 8 characters';return}
+  if(p.length>72){_E('authError2').textContent='Password must be at most 72 characters';return}
   if(p!==p2){_E('authError2').textContent='Passwords do not match';return}
   var btn=_E('registerBtn');btn.disabled=true;btn.textContent='Creating account...';
   fetch(_apiBaseUrl()+'/api/auth/register',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({username:u,password:p})
   }).then(function(r){
-    if(!r.ok) return r.json().then(function(e){throw new Error(e.detail||'Registration failed')});
+    if(!r.ok) return r.json().then(function(e){throw new Error(_apiError(e,'Registration failed'))});
     return r.json();
   }).then(function(data){
     _token=data.access_token;localStorage.setItem('mcf_token',_token);
-    _user=data.user;authHide();_renderProfile();_renderSide();_openIntake(true);
+    _user=data.user;_onAuthed(true);
   }).catch(function(e){
     _E('authError2').textContent=e.message;
     btn.disabled=false;btn.textContent='Create Account';
@@ -950,6 +912,10 @@ function authRegister(){
 
 function authLogout(){
   _token=null;_user=null;localStorage.removeItem('mcf_token');
+  // Drop the previous user's data from memory and from the screen.
+  _d={};_c=null;_pt=null;_triage=null;_files=[];_b=false;
+  _renderSide();_showWelcome();_renderFiles();_renderTriage();
+  _E('hpOverlay').classList.remove('open');_renderHealthSummary();
   authShow();
 }
 
@@ -976,7 +942,7 @@ function authInit(){
       if(!r.ok){_token=null;localStorage.removeItem('mcf_token');authShow();return}
       return r.json();
     }).then(function(u){
-      if(u){_user=u;authHide();_renderSide();_renderProfile();_openIntake(false)}
+      if(u){_user=u;_onAuthed(false)}
     }).catch(function(){authShow()});
   } else { authShow(); }
 }
@@ -986,30 +952,75 @@ var _b = false; // busy flag
 var _apiBase = ''; // Same origin — FastAPI serves both API and frontend
 
 // Profile
-var _p = { name:'', initials:'', email:'patient@clinic.com', specialty:'General', institution:'City Clinic' };
 
 // Settings
-var _s = { theme:'light', model:'local', temperature:'0.3', stream:false, autoSave:true, disclaimer:true, shareData:false };
+var _s = { theme:'light', autoSave:true, disclaimer:true };
 
-// Edit
-var _ef = null;
-
-// Patient intake (held in JS memory for this session only)
+// Health profile, loaded from the account after sign-in (null = not filled in)
 var _pt = null;
-var _intakeOpen = true;
+var _hpOnboarding = false;
 
 // ────── HELPERS ──────
 function _esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function _fmt(t){return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>')}
+// Escape first, then apply a small markdown subset, so neither the user's text
+// nor model output can inject HTML.
+function _inline(t){return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')}
+function _fmt(t){
+  var lines=_esc(String(t==null?'':t)).split('\n'),out=[],list=false;
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i],m;
+    if((m=l.match(/^\s*[-*]\s+(.*)$/))){if(!list){out.push('<ul>');list=true}out.push('<li>'+_inline(m[1])+'</li>');continue}
+    if(list){out.push('</ul>');list=false}
+    if(/^\s*---+\s*$/.test(l)){out.push('<hr>');continue}
+    if((m=l.match(/^#{1,3}\s+(.*)$/))){out.push('<div class="md-h">'+_inline(m[1])+'</div>');continue}
+    if(l.trim()===''){out.push('<div class="md-gap"></div>');continue}
+    out.push('<div>'+_inline(l)+'</div>');
+  }
+  if(list)out.push('</ul>');
+  return out.join('');
+}
 function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function _E(id){return document.getElementById(id)}
 
-function _save(){try{localStorage.setItem('mcf_data',JSON.stringify(_d))}catch(e){}}
-function _saveCfg(){try{localStorage.setItem('mcf_prof',JSON.stringify(_p));localStorage.setItem('mcf_set',JSON.stringify(_s))}catch(e){}}
+// Conversations and profile are stored per signed-in user, so accounts that
+// share a browser never see each other's chats.
+function _key(name){return 'mcf_'+name+'_u'+(_user?_user.id:'anon')}
+function _save(){if(!_user)return;try{localStorage.setItem(_key('data'),JSON.stringify(_d))}catch(e){}}
+function _saveCfg(){try{localStorage.setItem('mcf_set',JSON.stringify(_s))}catch(e){}}
 function _load(){
-  try{var r=localStorage.getItem('mcf_data');_d=r?JSON.parse(r):{};_c=localStorage.getItem('mcf_act');if(_c&&!_d[_c])_c=null}catch(e){_d={};_c=null}
-  try{var p=localStorage.getItem('mcf_prof');if(p)Object.assign(_p,JSON.parse(p))}catch(e){}
+  _d={};_c=null;
+  try{
+    var r=localStorage.getItem(_key('data'));
+    // One-time migration of chats saved before storage was per-user.
+    if(!r&&localStorage.getItem('mcf_data')){r=localStorage.getItem('mcf_data');localStorage.setItem(_key('data'),r)}
+    localStorage.removeItem('mcf_data');localStorage.removeItem('mcf_prof');localStorage.removeItem('mcf_act');
+    _d=r?JSON.parse(r):{};_c=localStorage.getItem(_key('act'));if(_c&&!_d[_c])_c=null;
+  }catch(e){_d={};_c=null}
   try{var s=localStorage.getItem('mcf_set');if(s)Object.assign(_s,JSON.parse(s))}catch(e){}
+}
+// Called once the user is known: load their data and draw the app.
+function _onAuthed(isNewAccount){
+  // The safety screening ran before sign-in; keep its result for the open chat.
+  var screened=_triageFresh?_triage:null;
+  authHide();_load();_renderSide();_renderProfile();
+  if(_c&&_d[_c]){mcOpen(_c)}
+  else if(Object.keys(_d).length>0){mcOpen(Object.keys(_d)[0])}
+  else{_showWelcome()}
+  if(screened){
+    _triage=screened;
+    if(_c&&_d[_c]){_d[_c].triage=screened;_save()}
+    _renderTriage();
+  }
+  mcUpdSend();_loadHealth(isNewAccount);
+}
+// fetch() with the bearer token; an expired/invalid session returns to sign-in.
+function _api(path,opts){
+  opts=opts||{};opts.headers=opts.headers||{};
+  if(_token)opts.headers['Authorization']='Bearer '+_token;
+  return fetch(_apiBase+path,opts).then(function(r){
+    if(r.status===401){authLogout();throw new Error('Your session has expired. Please sign in again.')}
+    return r;
+  });
 }
 
 // ────── RENDER ──────
@@ -1026,18 +1037,13 @@ function _renderSide(){
 }
 
 function _renderProfile(){
-  var displayName = _user ? _user.username : _p.name;
-  var initials = _user ? _user.username.charAt(0).toUpperCase() : _p.initials;
-  _E('smallName').textContent=displayName;
-  _E('smallAvatar').textContent=initials;
-  _E('profName').textContent=displayName;
-  _E('profEmail').textContent=_p.email;
-  _E('profAvatar').textContent=initials;
-  _E('fieldName').textContent=_p.name;
-  _E('fieldEmail').textContent=_p.email;
-  _E('fieldSpecialty').textContent=_p.specialty;
-  _E('fieldInstitution').textContent=_p.institution;
+  var name=_user?_user.username:'Patient',initial=name.charAt(0).toUpperCase();
+  _E('smallName').textContent=name;_E('smallAvatar').textContent=initial;
+  _E('profName').textContent=name;_E('profAvatar').textContent=initial;
   _E('totalConvs').textContent=Object.keys(_d).length;
+  var since=_user&&_user.created_at?new Date(String(_user.created_at).replace(' ','T')):null;
+  _E('memberSince').textContent=(since&&!isNaN(since))?since.toLocaleDateString(undefined,{year:'numeric',month:'long'}):'—';
+  _renderHealthSummary();
 }
 
 function _showWelcome(){
@@ -1093,8 +1099,9 @@ function _imagePreview(file){
 }
 
 function _msgHTML(m){
-  var av=m.role==='user'?_p.initials:'🩺';
-  var lb=m.role==='user'?_p.name:'MediChat';
+  var who=_user?_user.username:'You';
+  var av=m.role==='user'?_esc(who.charAt(0).toUpperCase()):'🩺';
+  var lb=m.role==='user'?_esc(who):'MediChat';
   var rc=m.role==='user'?'usr':'ai';
   return '<div class="msg '+rc+'"><div class="msg-av">'+av+'</div><div class="msg-body"><span class="msg-label">'+lb+'</span><div class="msg-bub">'+_fmt(m.content)+_attachmentHTML(m)+'</div></div></div>';
 }
@@ -1117,74 +1124,47 @@ function _showTyping(){
 function _hideTyping(el){if(el&&el.parentNode)el.parentNode.removeChild(el)}
 
 // ────── AI CALL (real API integration) ──────
-// Map the intake clipboard onto the cardiac model's feature names.
-function _ptVitals(){
-  var v={};
-  if(!_pt)return v;
-  if(_pt.age!==''&&_pt.age!==undefined&&_pt.age!==null)v.age=_pt.age;
-  if(_pt.sex==='Male')v.sex=1; else if(_pt.sex==='Female')v.sex=0;
-  if(_pt.hr)v.heart_rate=parseInt(_pt.hr,10);
-  // "120/80" -> systolic 120
-  if(_pt.bp){
-    var m=String(_pt.bp).match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
-    if(m)v.resting_blood_pressure=parseInt(m[1],10);
-  }
-  return v;
-}
-
 function _callAI(userMsg, files, heartRate, convId, cb){
   // Step 1: Upload files if present, then send chat request
   var uploadPromises = (files || []).map(function(f){
     var fd = new FormData();
     fd.append('file', f);
-    return fetch(_apiBase + '/api/upload', { method:'POST', body: fd })
+    fd.append('kind', f._kind || 'skin');
+    return _api('/api/upload', { method:'POST', body: fd })
       .then(function(r){
-        if(!r.ok) throw new Error('Upload failed: ' + f.name);
+        if(!r.ok) return r.json().then(function(e){ throw new Error(_apiError(e,'Upload failed')+' ('+f.name+')') });
         return r.json();
       });
   });
 
   Promise.all(uploadPromises).then(function(uploads){
     // Determine file paths from upload results
+    // The image type is the one the user chose on the attachment chip.
     var breastPath = null, skinPath = null;
-    uploads.forEach(function(u, index){
-      // Saved paths use UUIDs; retain the original attachment name for routing.
-      var name = ((files[index] && files[index].name) || '').toLowerCase();
-      var fname = name.split(/[/\\]/).pop();
-      if(fname.indexOf('breast') !== -1 || fname.indexOf('mamm') !== -1){
-        breastPath = u.file_path;
-      } else {
-        skinPath = u.file_path;
-      }
+    uploads.forEach(function(u){
+      if(u.kind === 'mammogram') breastPath = u.file_id; else skinPath = u.file_id;
     });
 
     // Build form data for the chat request
     var fd = new FormData();
     fd.append('message', userMsg);
     fd.append('conversation_id', convId);
-    if(breastPath) fd.append('breast_scan_path', breastPath);
-    if(skinPath) fd.append('skin_photo_path', skinPath);
-    // Front desk -> doctor: triage result, history and vitals from the clipboard
-    if(_pt||_triage) fd.append('patient_context', mcBuildPatientCtx());
-    var v=_ptVitals();
-    var hr = (heartRate!==null&&heartRate!==undefined&&heartRate!=='') ? heartRate : v.heart_rate;
-    if(hr) fd.append('heart_rate', hr);
-    if(v.age!==undefined) fd.append('age', v.age);
-    if(v.sex!==undefined) fd.append('sex', v.sex);
-    if(v.resting_blood_pressure!==undefined) fd.append('resting_blood_pressure', v.resting_blood_pressure);
+    if(breastPath) fd.append('breast_scan_id', breastPath);
+    if(skinPath) fd.append('skin_photo_id', skinPath);
+    // The health profile is read from the account on the server; only this
+    // conversation's safety screening result travels with the message.
+    if(_triage&&_triage.level) fd.append('triage_context', mcBuildTriageCtx());
 
-    return fetch(_apiBase + '/api/chat', { method:'POST', body: fd });
+    return _api('/api/chat', { method:'POST', body: fd });
   }).then(function(r){
-    if(!r.ok){ return r.json().then(function(e){ throw new Error(e.detail || e.message || 'Chat request failed') }) }
+    if(!r.ok){ return r.json().then(function(e){ throw new Error(_apiError(e,'Chat request failed')) }) }
     return r.json();
   }).then(function(data){
     cb(data.reply, data.messages || [], data.disclaimer || '');
   }).catch(function(err){
     console.error('API Error:', err);
     var msg = err.message || String(err);
-    if(msg.indexOf('Ollama') !== -1 || msg.indexOf('unavailable') !== -1){
-      msg = '⚠️ Ollama is not running. Please start it locally (ollama serve) and pull the model (ollama pull llama3.2).';
-    } else if(msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1){
+    if(msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1){
       msg = '⚠️ Cannot reach the server. Make sure uvicorn is running.';
     } else {
       msg = '⚠️ ' + msg;
@@ -1196,7 +1176,7 @@ function _callAI(userMsg, files, heartRate, convId, cb){
 // ────── PUBLIC FUNCTIONS ──────
 
 function mcOpen(id){
-  _c=id;localStorage.setItem('mcf_act',id);
+  _c=id;localStorage.setItem(_key('act'),id);
   var c=_d[id];_E('htitle').textContent=c.title;
   _triage=c.triage||null;_renderTriage();
   if(c.msgs.length===0){_showWelcome()}else{
@@ -1218,12 +1198,6 @@ function mcNew(skipTriage){
   if(!willTriage&&_triage)_d[id].triage=_triage;
   _save();mcOpen(id);mcCloseSide();
   if(willTriage)mcTriageStart();
-  // Then swap in the backend conversation id when it arrives
-  fetch(_apiBase+'/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'}})
-    .then(function(r){return r.json()})
-    .then(function(data){
-      if(_d[id]&&data&&data.conversation_id){_d[id].convId=data.conversation_id;_save()}
-    }).catch(function(){});
 }
 
 function mcDel(id){
@@ -1235,7 +1209,7 @@ function mcDel(id){
 
 function mcReset(){
   if(_b)return;
-  if(_c&&_d[_c]){_d[_c].msgs=[];_d[_c].title='New Conversation';_save();mcOpen(_c)}
+  if(_c&&_d[_c]){_d[_c].msgs=[];_d[_c].title='New Conversation';_d[_c].convId=_uid();_save();mcOpen(_c)}
 }
 
 function mcSend(){
@@ -1323,34 +1297,13 @@ function mcOpenProfile(){
 }
 function mcCloseProfile(){_E('profPanel').classList.remove('open');_E('overlay').classList.remove('on')}
 function mcOpenSettings(){
-  // Sync dropdowns to current settings
-  _E('modelSelect').value=_s.model;
-  _E('tempSelect').value=_s.temperature;
-  _E('streamToggle').checked=_s.stream;
   _E('autoSaveToggle').checked=_s.autoSave;
   _E('disclaimerToggle').checked=_s.disclaimer;
-  _E('dataToggle').checked=_s.shareData;
   _E('setPanel').classList.add('open');_E('overlay').classList.add('on');
 }
 function mcCloseSettings(){_E('setPanel').classList.remove('open');_E('overlay').classList.remove('on')}
 function mcCloseAll(){
-  mcCloseSide();mcCloseProfile();mcCloseSettings();mcCloseEdit();
-}
-
-// ────── PROFILE EDIT ──────
-function mcEditField(field){
-  _ef=field;_E('editModalTitle').textContent='Edit '+field.charAt(0).toUpperCase()+field.slice(1);
-  _E('editModalInput').value=_p[field]||'';
-  _E('editModal').classList.add('open');_E('editOverlay').classList.add('show');
-  _E('editModalInput').focus();
-}
-function mcEditProfile(){mcEditField('name')}
-function mcCloseEdit(){_E('editModal').classList.remove('open');_E('editOverlay').classList.remove('show');_ef=null}
-function mcSaveEdit(){
-  var val=_E('editModalInput').value.trim();if(!val)return;
-  _p[_ef]=val;
-  if(_ef==='name')_p.initials=val.split(' ').map(function(w){return w[0]}).join('').toUpperCase().slice(0,2);
-  _saveCfg();_renderProfile();mcCloseEdit();mcToast('Profile updated');
+  mcCloseSide();mcCloseProfile();mcCloseSettings();if(!_hpOnboarding)mcCloseHealth();
 }
 
 // ────── SETTINGS ──────
@@ -1362,15 +1315,11 @@ function mcSetTheme(v){
   // Theme locked to light green
   mcToast('Theme: Light Green');
 }
-function mcSetModel(v){_s.model=v;_saveCfg();mcToast('Model: '+v)}
-function mcSetTemp(v){_s.temperature=v;_saveCfg();mcToast('Temperature: '+v)}
-function mcToggleStream(v){_s.stream=v;_saveCfg();mcToast('Stream: '+(v?'On':'Off'))}
 function mcToggleAutoSave(v){_s.autoSave=v;_saveCfg();mcToast('Auto-save: '+(v?'On':'Off'))}
 function mcToggleDisclaimer(v){_s.disclaimer=v;_saveCfg();_E('disclaimer').style.display=v?'':'none';mcToast('Disclaimer: '+(v?'On':'Off'))}
-function mcToggleData(v){_s.shareData=v;_saveCfg();mcToast('Data sharing: '+(v?'On':'Off'))}
 function mcClearAllData(){
   if(!confirm('Delete all conversation data? This cannot be undone.'))return;
-  _d={};_c=null;localStorage.removeItem('mcf_data');localStorage.removeItem('mcf_act');
+  _d={};_c=null;localStorage.removeItem(_key('data'));localStorage.removeItem(_key('act'));
   _renderSide();_showWelcome();mcCloseSettings();mcToast('All data cleared');
 }
 
@@ -1383,7 +1332,7 @@ function mcToast(msg){
 // ────── FILES ──────
 var _files = [];
 var _FILE_MAX = 10 * 1024 * 1024;
-var _FILE_TYPES = {'application/pdf':1,'image/png':1,'image/jpeg':1,'image/bmp':1,'image/tiff':1,'image/webp':1,'text/plain':1};
+var _FILE_TYPES = {'image/png':1,'image/jpeg':1,'image/bmp':1,'image/tiff':1,'image/webp':1};
 
 function _fmtSize(bytes){
   if(bytes<1024) return bytes+' B';
@@ -1400,7 +1349,11 @@ function mcOnFiles(e){
     if(f.size>_FILE_MAX){errEl.textContent='File too large (max 10 MB): '+f.name;return}
     var dup=false;
     for(var j=0;j<_files.length;j++){if(_files[j].name===f.name&&_files[j].size===f.size){dup=true;break}}
-    if(!dup) _files.push(f);
+    if(!dup){
+      // A first guess from the file name; the user confirms or changes it on the chip.
+      f._kind=/mamm|breast/i.test(f.name)?'mammogram':'skin';
+      _files.push(f);
+    }
   }
   e.target.value='';
   _renderFiles();
@@ -1417,10 +1370,17 @@ function _renderFiles(){
   if(_files.length===0){el.innerHTML='';return}
   var h='';
   for(var i=0;i<_files.length;i++){
-    h+='<div class="file-chip"><span class="file-chip-name">'+_esc(_files[i].name)+'</span><span class="file-chip-size">'+_fmtSize(_files[i].size)+'</span><button class="file-chip-del" onclick="mcRemoveFile('+i+')" title="Remove">&times;</button></div>';
+    var k=_files[i]._kind||'skin';
+    h+='<div class="file-chip"><span class="file-chip-name">'+_esc(_files[i].name)+'</span><span class="file-chip-size">'+_fmtSize(_files[i].size)+'</span>'
+      +'<select class="file-chip-kind" title="What is this image?" onchange="mcSetFileKind('+i+',this.value)">'
+      +'<option value="skin"'+(k==='skin'?' selected':'')+'>Skin photo</option>'
+      +'<option value="mammogram"'+(k==='mammogram'?' selected':'')+'>Mammogram</option></select>'
+      +'<button class="file-chip-del" onclick="mcRemoveFile('+i+')" title="Remove">&times;</button></div>';
   }
   el.innerHTML=h;
 }
+
+function mcSetFileKind(idx,kind){if(_files[idx])_files[idx]._kind=kind}
 
 function mcClearFiles(){
   _files=[];
@@ -1428,174 +1388,134 @@ function mcClearFiles(){
   _renderFiles();
 }
 
-// ────── PATIENT INTAKE ──────
-function _it(id){return _E(id).value.trim()}
+// ────── HEALTH PROFILE ──────
+// Long-lived patient information. It belongs to the account: asked once after
+// sign-up, stored on the server, edited from the Profile panel.
+var _HP_FIELDS = [
+  // [element id, API field, label in the summary, unit]
+  ['hAge','age','Age',''],['hSex','sex','Sex',''],['hHeight','height_cm','Height',' cm'],['hWeight','weight_kg','Weight',' kg'],
+  ['hPreg','pregnancy','Pregnancy',''],['hCond','conditions','Conditions',''],['hMeds','medications','Medications',''],
+  ['hDrugAll','drug_allergies','Drug allergies',''],['hFoodAll','food_allergies','Food allergies',''],
+  ['hSurg','surgeries','Past surgeries',''],['hFam','family_history','Family history',''],
+  ['hSmoke','smoking','Smoking',''],['hAlcohol','alcohol','Alcohol',''],['hRecre','recreational_drugs','Recreational drugs',''],
+  ['hBP','blood_pressure','Usual blood pressure',''],['hHR','resting_heart_rate','Resting heart rate',' bpm']
+];
+var _HP_NUMERIC = {age:1,height_cm:1,weight_kg:1,resting_heart_rate:1};
+
+function _hv(id){return _E(id).value.trim()}
 function _setErr(id,msg){_E(id).textContent=msg}
-
-function mcToggleIntake(){
-  _intakeOpen=!_intakeOpen;
-  _E('intakeBody').classList.toggle('open',_intakeOpen);
-  _E('intakeChev').textContent=_intakeOpen?'▴':'▾';
-}
-function mcCloseIntake(){
-  _intakeOpen=false;
-  _E('intakeBody').classList.remove('open');
-  _E('intakeChev').textContent='▾';
-}
 function mcOnSexChange(){
-  _E('pregField').style.display=(_E('iSex').value==='Female')?'block':'none';
+  var female=_E('hSex').value==='Female';
+  _E('pregField').style.display=female?'block':'none';
+  if(!female)_E('hPreg').value='';
 }
-function mcOnPain(v){_E('painVal').textContent=v}
 
-function mcSubmitIntake(){
-  var ok=true;
-  var ageS=_it('iAge'),ageN=parseFloat(ageS);
-  if(ageS===''||isNaN(ageN)||ageN<0||ageN>130){
-    _setErr('errAge',ageS===''?'Age is required':'Enter a valid age (0–130)');ok=false;
+function _renderHealthSummary(){
+  var el=_E('hpSummary');if(!el)return;
+  if(!_pt){
+    el.innerHTML='<div class="hp-empty">Not provided yet.</div>';
+    _E('hpEditBtn').textContent='+ Add health information';
+    return;
+  }
+  var h='';
+  for(var i=0;i<_HP_FIELDS.length;i++){
+    var f=_HP_FIELDS[i],v=_pt[f[1]];
+    if(v===null||v===undefined||v==='')continue;
+    h+='<div class="info-row hp-row"><span>'+f[2]+'</span><span class="info-val">'+_esc(String(v)+f[3])+'</span></div>';
+  }
+  el.innerHTML=h;
+  _E('hpEditBtn').textContent='✎ Edit health information';
+}
+
+// Fetch the profile saved with the account. New accounts (and older accounts
+// that never filled it in and have not skipped it) are asked for it once.
+function _loadHealth(isNewAccount){
+  _pt=null;_renderHealthSummary();
+  _api('/api/profile').then(function(r){return r.ok?r.json():{profile:null}}).then(function(data){
+    _pt=data.profile||null;_renderHealthSummary();
+    var skipped=false;try{skipped=localStorage.getItem(_key('hpskip'))==='1'}catch(e){}
+    if(!_pt&&(isNewAccount||!skipped))mcOpenHealth(true);
+  }).catch(function(){});
+}
+
+function mcOpenHealth(onboarding){
+  _hpOnboarding=!!onboarding;
+  for(var i=0;i<_HP_FIELDS.length;i++){
+    var f=_HP_FIELDS[i],v=_pt?_pt[f[1]]:'';
+    _E(f[0]).value=(v===null||v===undefined)?'':v;
+  }
+  mcOnSexChange();if(_pt&&_pt.pregnancy)_E('hPreg').value=_pt.pregnancy;
+  var errs=['errAge','errHeight','errWeight','errBP','errHR','hpError'];
+  for(var j=0;j<errs.length;j++)_setErr(errs[j],'');
+  _E('hpTitle').textContent=onboarding?'Welcome — tell us about your health':'Your health information';
+  _E('hpSub').textContent=onboarding
+    ?'This is saved with your account so you only enter it once. Only age is required. You can change it any time from your profile (bottom left).'
+    :'Saved with your account and used as background in every chat. Only age is required.';
+  _E('hpSkip').textContent=onboarding?'Skip for now':'Cancel';
+  _E('hpClose').style.display=onboarding?'none':'';
+  _E('hpSave').disabled=false;_E('hpSave').textContent='Save';
+  mcCloseProfile();mcCloseSide();
+  _E('hpOverlay').classList.add('open');
+  _E('hpForm').scrollTop=0;_E('hAge').focus();
+}
+
+function mcCloseHealth(){_E('hpOverlay').classList.remove('open');_hpOnboarding=false}
+
+function mcSkipHealth(){
+  if(_hpOnboarding){
+    try{localStorage.setItem(_key('hpskip'),'1')}catch(e){}
+    mcToast('You can add this later from your profile');
+  }
+  mcCloseHealth();
+}
+
+function mcSaveHealth(){
+  var ok=true,num=function(id){return parseFloat(_hv(id))};
+  var age=_hv('hAge');
+  if(age===''||isNaN(num('hAge'))||num('hAge')<0||num('hAge')>130||num('hAge')%1!==0){
+    _setErr('errAge',age===''?'Age is required':'Enter a whole number from 0 to 130');ok=false;
   }else _setErr('errAge','');
-  var h=_it('iHeight');
-  if(h!==''&&(isNaN(parseFloat(h))||parseFloat(h)<=0)){_setErr('errHeight','Enter a positive number');ok=false}
-  else _setErr('errHeight','');
-  var w=_it('iWeight');
-  if(w!==''&&(isNaN(parseFloat(w))||parseFloat(w)<=0)){_setErr('errWeight','Enter a positive number');ok=false}
-  else _setErr('errWeight','');
-  var symp=_it('iSymp');
-  if(symp===''){_setErr('errSymp','Current symptoms are required');ok=false}
-  else _setErr('errSymp','');
-  var t=_it('iTemp');
-  if(t!==''&&(isNaN(parseFloat(t))||parseFloat(t)<30||parseFloat(t)>45)){_setErr('errTemp','Enter a temperature between 30 and 45 °C');ok=false}
-  else _setErr('errTemp','');
-  var hr=_it('iHR');
-  if(hr!==''&&(isNaN(parseFloat(hr))||parseFloat(hr)<=0)){_setErr('errHR','Enter a positive number');ok=false}
-  else _setErr('errHR','');
+  var h=_hv('hHeight');
+  if(h!==''&&(isNaN(num('hHeight'))||num('hHeight')<=0||num('hHeight')>280)){_setErr('errHeight','Enter a height in cm');ok=false}else _setErr('errHeight','');
+  var w=_hv('hWeight');
+  if(w!==''&&(isNaN(num('hWeight'))||num('hWeight')<=0||num('hWeight')>700)){_setErr('errWeight','Enter a weight in kg');ok=false}else _setErr('errWeight','');
+  var bp=_hv('hBP');
+  if(bp!==''&&!/^\d{2,3}\s*\/\s*\d{2,3}$/.test(bp)){_setErr('errBP','Use the form 120/80');ok=false}else _setErr('errBP','');
+  var hr=_hv('hHR');
+  if(hr!==''&&(isNaN(num('hHR'))||num('hHR')<20||num('hHR')>250||num('hHR')%1!==0)){_setErr('errHR','Enter a whole number from 20 to 250');ok=false}else _setErr('errHR','');
   if(!ok)return false;
 
-  _pt={
-    age:ageN,
-    sex:_it('iSex'),
-    height:h,weight:w,
-    preg:_it('iPreg'),
-    dur:_it('iDur'),
-    pain:_it('iPain'),
-    symp:symp,
-    cond:_it('iMedCond'),
-    meds:_it('iMeds'),
-    drugAll:_it('iDrugAll'),
-    foodAll:_it('iFoodAll'),
-    surg:_it('iSurg'),
-    fam:_it('iFam'),
-    smoke:_it('iSmoke'),
-    alc:_it('iAlcohol'),
-    recre:_it('iRecre'),
-    travel:_it('iTravel'),
-    temp:t,bp:_it('iBP'),hr:hr
-  };
-  mcCloseIntake();
-  _renderSummary();
-  mcToast('Patient information saved');
+  var body={};
+  for(var i=0;i<_HP_FIELDS.length;i++){
+    var f=_HP_FIELDS[i],v=_hv(f[0]);
+    body[f[1]]=_HP_NUMERIC[f[1]]?(v===''?null:parseFloat(v)):v;
+  }
+  var btn=_E('hpSave');btn.disabled=true;btn.textContent='Saving…';_setErr('hpError','');
+  _api('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){
+      if(!r.ok)return r.json().then(function(e){throw new Error(_apiError(e,'Please check the values and try again.'))});
+      return r.json();
+    }).then(function(data){
+      _pt=data.profile;_renderHealthSummary();mcCloseHealth();mcToast('Health information saved');
+    }).catch(function(e){
+      _setErr('hpError',e.message||'Could not save. Please try again.');
+      btn.disabled=false;btn.textContent='Save';
+    });
   return false;
 }
 
-function mcCancelIntake(){mcCloseIntake()}
-
-function mcClearIntake(){
-  if(_pt&&!confirm('Clear the saved patient information?'))return;
-  var els=_E('intakeForm').querySelectorAll('input,textarea,select');
-  for(var i=0;i<els.length;i++){els[i].value=els[i].type==='range'?'0':''}
-  mcOnPain(0);mcOnSexChange();
-  _pt=null;
-  _E('ptSummary').style.display='none';
-  _E('intakeStatus').textContent='Not provided';
-  _E('intakeStatus').classList.remove('done');
-  _setErr('errAge','');_setErr('errHeight','');_setErr('errWeight','');
-  _setErr('errSymp','');_setErr('errTemp','');_setErr('errHR','');
-  if(!_intakeOpen)mcToggleIntake();
-  mcToast('Form cleared');
-}
-
-function mcEditIntake(){
-  if(_pt){
-    _E('iAge').value=_pt.age;
-    _E('iSex').value=_pt.sex;mcOnSexChange();
-    _E('iHeight').value=_pt.height;
-    _E('iWeight').value=_pt.weight;
-    _E('iPreg').value=_pt.preg;
-    _E('iDur').value=_pt.dur;
-    _E('iPain').value=_pt.pain;mcOnPain(_pt.pain);
-    _E('iSymp').value=_pt.symp;
-    _E('iMedCond').value=_pt.cond;
-    _E('iMeds').value=_pt.meds;
-    _E('iDrugAll').value=_pt.drugAll;
-    _E('iFoodAll').value=_pt.foodAll;
-    _E('iSurg').value=_pt.surg;
-    _E('iFam').value=_pt.fam;
-    _E('iSmoke').value=_pt.smoke;
-    _E('iAlcohol').value=_pt.alc;
-    _E('iRecre').value=_pt.recre;
-    _E('iTravel').value=_pt.travel;
-    _E('iTemp').value=_pt.temp;
-    _E('iBP').value=_pt.bp;
-    _E('iHR').value=_pt.hr;
+// This conversation's safety screening result, sent with each message.
+function mcBuildTriageCtx(){
+  var L=[];
+  var tmap={urgent:'Needs attention today',soon:'Within the next few days',routine:'General question'};
+  L.push('Self-Reported Urgency: '+(tmap[_triage.level]||_triage.level));
+  if(_triage.flags&&_triage.flags.length){
+    var fl=[];
+    for(var ti=0;ti<_triage.flags.length;ti++)fl.push(_triage.flags[ti].label);
+    L.push('Emergency Screening: RED FLAGS REPORTED, patient was advised to call 911 and chose to continue — '+fl.join('; '));
+  }else{
+    L.push('Emergency Screening: no red flags reported');
   }
-  _intakeOpen=true;
-  _E('intakeBody').classList.add('open');
-  _E('intakeChev').textContent='▴';
-  _E('intakeBody').scrollTop=0;
-  _E('iAge').focus();
-}
-
-function _renderSummary(){
-  if(!_pt){_E('ptSummary').style.display='none';return}
-  var parts=['Age: '+_pt.age];
-  if(_pt.sex)parts.push(_pt.sex);
-  if(_pt.height)parts.push(_pt.height+' cm');
-  if(_pt.weight)parts.push(_pt.weight+' kg');
-  if(_pt.pain&&_pt.pain!=='0')parts.push('Pain: '+_pt.pain+'/10');
-  _E('ptSummaryLine').textContent=parts.join('  ·  ');
-  _E('intakeStatus').textContent='Saved';
-  _E('intakeStatus').classList.add('done');
-  _E('ptSummary').style.display='flex';
-}
-
-function _or(v,d){return (v&&String(v).trim())?String(v).trim():d}
-
-function mcBuildPatientCtx(){
-  var p=_pt;
-  var L=['Patient Information:'];
-  if(_triage&&_triage.level){
-    var tmap={urgent:'Needs attention today',soon:'Within the next few days',routine:'General question'};
-    L.push('Self-Reported Urgency: '+(tmap[_triage.level]||_triage.level));
-    if(_triage.flags&&_triage.flags.length){
-      var fl=[];
-      for(var ti=0;ti<_triage.flags.length;ti++)fl.push(_triage.flags[ti].label);
-      L.push('Emergency Screening: RED FLAGS REPORTED, patient was advised to call 911 and chose to continue — '+fl.join('; '));
-    }else{
-      L.push('Emergency Screening: no red flags reported');
-    }
-  }
-  L.push('Age: '+(p&&p.age!==''&&p.age!==undefined&&p.age!==null?p.age:'Not provided'));
-  L.push('Sex: '+_or(p&&p.sex,'Not provided'));
-  if(p&&p.height)L.push('Height: '+p.height+' cm');
-  if(p&&p.weight)L.push('Weight: '+p.weight+' kg');
-  if(p&&p.preg)L.push('Pregnancy Status: '+p.preg);
-  L.push('Symptoms: '+_or(p&&p.symp,'Not provided'));
-  if(p&&p.dur)L.push('Duration of Symptoms: '+p.dur);
-  if(p&&p.pain&&p.pain!=='0')L.push('Pain Level: '+p.pain+'/10');
-  L.push('Medical Conditions: '+_or(p&&p.cond,'None reported'));
-  L.push('Medications: '+_or(p&&p.meds,'None reported'));
-  var all=[];
-  if(p&&p.drugAll)all.push('drug: '+p.drugAll);
-  if(p&&p.foodAll)all.push('food: '+p.foodAll);
-  L.push('Allergies: '+(all.length?all.join('; '):'None reported'));
-  if(p&&p.surg)L.push('Recent Surgeries: '+p.surg);
-  if(p&&p.fam)L.push('Family Medical History: '+p.fam);
-  if(p&&p.smoke)L.push('Smoking Status: '+p.smoke);
-  if(p&&p.alc)L.push('Alcohol Use: '+p.alc);
-  if(p&&p.recre)L.push('Recreational Drug Use: '+p.recre);
-  if(p&&p.travel)L.push('Recent Travel: '+p.travel);
-  if(p&&p.temp)L.push('Temperature: '+p.temp+' °C');
-  if(p&&p.bp)L.push('Blood Pressure: '+p.bp);
-  if(p&&p.hr)L.push('Heart Rate: '+p.hr+' bpm');
   return L.join('\n');
 }
 
@@ -1625,12 +1545,21 @@ var _RED_FLAG_PATTERNS = [
 // "what is a stroke?" doesn't throw up an alarming red screen.
 var _FIRST_PERSON = /\b(i|i'm|im|i've|ive|my|me|we|my wife|he|she|they|his|her|their|mom|dad|son|daughter)\b/i;
 
+// "I don't have chest pain" must not raise the alarm: a hit is ignored when a
+// denial sits just before it in the same sentence (mirrors safety.py).
+var _DENIED_BEFORE = /\b(?:no|not|never|without|don'?t|doesn'?t|didn'?t|do not|does not|did not|haven'?t|hasn'?t|isn'?t|aren'?t|wasn'?t|denies|free of)\b(?:(?!\b(?:but|however|though|although|yet|except)\b)[^.!?;,]){0,25}$/i;
+
 function _scanRedFlags(text){
   var hits=[];
   if(!_FIRST_PERSON.test(text))return hits;
   for(var i=0;i<_RED_FLAG_PATTERNS.length;i++){
     var p=_RED_FLAG_PATTERNS[i];
-    if(p.re.test(text))hits.push({k:p.k,label:p.label});
+    var re=new RegExp(p.re.source,'gi'),m,real=false;
+    while((m=re.exec(text))!==null){
+      if(!_DENIED_BEFORE.test(text.slice(0,m.index))){real=true;break}
+      if(m.index===re.lastIndex)re.lastIndex++;
+    }
+    if(real)hits.push({k:p.k,label:p.label});
   }
   return hits;
 }
@@ -1750,18 +1679,8 @@ function _triageDone(level,flags){
   if(_c&&_d[_c]){_d[_c].triage=_triage;_save()}
   _E('triageOverlay').classList.remove('open');
   _renderTriage();
-  // The pre-login gate hands off to sign-in; the clipboard opens after auth
-  if(_preAuthGate){_preAuthGate=false;authInit();return}
-  _openIntake(true);
-}
-
-// Hand off to the clipboard — the front desk collects details next
-function _openIntake(focus){
-  _intakeOpen=true;
-  _E('intakeBody').classList.add('open');
-  _E('intakeChev').textContent='▴';
-  _E('intakeBody').scrollTop=0;
-  if(focus&&!_pt)_E('iAge').focus();
+  // The pre-login gate hands off to sign-in
+  if(_preAuthGate){_preAuthGate=false;authInit()}
 }
 
 function _renderTriage(){
@@ -1839,6 +1758,7 @@ function mcUsePhoto(){
   canvas.toBlob(function(blob){
     var filename='camera_'+Date.now()+'.jpg';
     var file=new File([blob],filename,{type:'image/jpeg'});
+    file._kind='skin';
     _files.push(file);
     _renderFiles();
     mcCloseCamera();
@@ -1855,11 +1775,8 @@ function mcUsePhoto(){
   document.addEventListener('keydown',function(e){if(e.key==='Escape')mcCloseAll()});
   setInterval(function(){if(_c&&_s.autoSave)_save()},3000);
 
-  _load();_renderSide();_renderProfile();
-  if(_c&&_d[_c]){mcOpen(_c)}
-  else if(Object.keys(_d).length>0){mcOpen(Object.keys(_d)[0])}
-  else{_showWelcome()}
-  mcUpdSend();
+  try{var st=localStorage.getItem('mcf_set');if(st)Object.assign(_s,JSON.parse(st))}catch(e){}
+  _renderSide();_showWelcome();mcUpdSend();
 
   // Apply saved settings
   if(!_s.disclaimer)_E('disclaimer').style.display='none';

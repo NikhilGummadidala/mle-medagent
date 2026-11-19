@@ -1,268 +1,341 @@
-"""
-Breast Cancer specialist — dual-model architecture.
+"""Breast specialist.
 
-- Primary:   CNN (BreastCancerCNN) — classifies breast scan images.
-- Fallback:  MLP (BreastCancerMLP) — classifies from 30 tabular features
-             (Wisconsin Breast Cancer dataset) when no image is available.
-"""
+Images: Mammoscreen (https://huggingface.co/ianpan/mammoscreen, Apache-2.0), an
+ensemble of three EfficientNetV2-S networks trained on CBIS-DDSM and the RSNA
+Screening Mammography data, preceded by the mammo-crop model
+(https://huggingface.co/ianpan/mammo-crop, Apache-2.0) that trims background.
+The architectures below are re-implemented from those repositories so the
+published ``.safetensors`` weights load without executing any downloaded code.
 
+Tabular: a scikit-learn pipeline trained by ``scripts/train_breast_tabular.py``
+on the Wisconsin Diagnostic Breast Cancer features.
+"""
 from __future__ import annotations
 
+import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
-import torch.nn as nn
-from PIL import Image
+
+from models.schema import BREAST_FEATURE_KEYS, validate_breast_features
 
 logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "saved_models"
-CNN_MODEL_PATH = MODEL_DIR / "breast_cancer_cnn.pt"
-MLP_MODEL_PATH = MODEL_DIR / "breast_cancer_mlp.pt"
-IMG_SIZE = 224
+MAMMOSCREEN_DIR = MODEL_DIR / "mammoscreen"
+MAMMO_CROP_DIR = MODEL_DIR / "mammo_crop"
+TABULAR_MODEL_PATH = MODEL_DIR / "breast_cancer_tabular.joblib"
+TABULAR_METADATA_PATH = MODEL_DIR / "breast_cancer_tabular.metadata.json"
 
-# Wisconsin Breast Cancer feature keys (30 features, must match BREAST_CANCER_FEATURE_KEYS)
-FEATURE_KEYS = [
-    "radius_mean", "texture_mean", "perimeter_mean", "area_mean",
-    "smoothness_mean", "compactness_mean", "concavity_mean",
-    "concave_points_mean", "symmetry_mean", "fractal_dimension_mean",
-    "radius_se", "texture_se", "perimeter_se", "area_se",
-    "smoothness_se", "compactness_se", "concavity_se",
-    "concave_points_se", "symmetry_se", "fractal_dimension_se",
-    "radius_worst", "texture_worst", "perimeter_worst", "area_worst",
-    "smoothness_worst", "compactness_worst", "concavity_worst",
-    "concave_points_worst", "symmetry_worst", "fractal_dimension_worst",
-]
+# Operating point published on the Mammoscreen model card (mean of 3 held-out
+# splits of the RSNA screening data): scores at or above this flagged 94.3% of
+# cancers while clearing 78.7% of cancer-free breasts. Overall AUROC 0.945.
+SCREEN_THRESHOLD = 0.0127
+SCREEN_SENSITIVITY = 0.943
+SCREEN_SPECIFICITY = 0.787
+SCREEN_AUROC = 0.945
 
+DENSITY_LABELS = ("A (almost entirely fatty)", "B (scattered density)",
+                  "C (heterogeneously dense)", "D (extremely dense)")
 
-# ── CNN Architecture (image input) ───────────────────────────────────────────
-
-class BreastCancerCNN(nn.Module):
-    """
-    CNN for breast cancer classification (benign vs malignant).
-    Input: RGB breast scan image (224×224).
-    Output: single sigmoid probability in [0, 1].
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
+_lock = threading.Lock()
+_screen_model = None
+_crop_model = None
+_tabular_model = None
+_tabular_metadata: dict[str, Any] = {}
 
 
-# ── MLP Architecture (tabular input) ─────────────────────────────────────────
-
-class BreastCancerMLP(nn.Module):
-    """
-    Multi-layer perceptron for breast cancer classification.
-    Input:  30 normalised tumour features (Wisconsin dataset).
-    Output: single sigmoid probability in [0, 1].
-    """
-
-    def __init__(self, input_dim: int = 30) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-
-            nn.Linear(64, 32),
-            nn.ReLU(),
-
-            nn.Linear(32, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+class NotAMammogramError(ValueError):
+    """The image does not look like a mammogram, so it was not scored."""
 
 
-# ── Device ────────────────────────────────────────────────────────────────────
+# ── Architectures (lazy: torch/timm are imported only when an image arrives) ──
 
-_device = None
+def _build_screen_model(config: dict[str, Any]):
+    import torch
+    import torch.nn as nn
+    from timm import create_model
 
-
-def _get_device() -> torch.device:
-    global _device
-    if _device is None:
-        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return _device
-
-
-# ── Model Loaders (cached singletons) ────────────────────────────────────────
-
-_cnn_model = None
-_mlp_model = None
-
-
-def load_cnn_model() -> BreastCancerCNN:
-    """Load the Breast Cancer CNN from disk. Cached after first call."""
-    global _cnn_model
-    if _cnn_model is not None:
-        return _cnn_model
-
-    if not CNN_MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"CNN model not found at {CNN_MODEL_PATH}. "
-            "Run the BreastCancerAgent notebook and export the CNN model first."
-        )
-
-    device = _get_device()
-    model = BreastCancerCNN().to(device)
-    model.load_state_dict(torch.load(CNN_MODEL_PATH, map_location=device, weights_only=True))
-    model.eval()
-
-    _cnn_model = model
-    logger.info("Breast cancer CNN loaded from %s", CNN_MODEL_PATH)
-    return _cnn_model
-
-
-def load_mlp_model() -> BreastCancerMLP:
-    """Load the Breast Cancer MLP from disk. Cached after first call."""
-    global _mlp_model
-    if _mlp_model is not None:
-        return _mlp_model
-
-    if not MLP_MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"MLP model not found at {MLP_MODEL_PATH}. "
-            "Run the BreastCancerAgent notebook and export the MLP model first."
-        )
-
-    device = _get_device()
-    model = BreastCancerMLP().to(device)
-    model.load_state_dict(torch.load(MLP_MODEL_PATH, map_location=device, weights_only=True))
-    model.eval()
-
-    _mlp_model = model
-    logger.info("Breast cancer MLP loaded from %s", MLP_MODEL_PATH)
-    return _mlp_model
-
-
-# ── Preprocessing ─────────────────────────────────────────────────────────────
-
-def _preprocess_image(image_path: str) -> torch.Tensor:
-    """Load an image from disk and prepare it for the CNN."""
-    img = Image.open(image_path).convert("RGB")
-    img = img.resize((IMG_SIZE, IMG_SIZE))
-
-    arr = np.array(img, dtype=np.float32) / 255.0
-    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-    std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-    arr = (arr - mean) / std
-
-    # HWC → CHW, add batch dim
-    tensor = torch.tensor(arr, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
-    return tensor
-
-
-def _preprocess_features(features: dict[str, float | None]) -> torch.Tensor:
-    """Convert a dict of Wisconsin features into a normalised tensor."""
-    values = []
-    for key in FEATURE_KEYS:
-        val = features.get(key)
-        if val is None:
-            raise ValueError(
-                f"Missing required breast cancer feature: {key}. "
-                "All 30 Wisconsin features must be provided for tabular prediction."
+    class MammoNet(nn.Module):
+        def __init__(self, image_size, pad_to_aspect_ratio):
+            super().__init__()
+            self.backbone = create_model(
+                config["backbone"], pretrained=False, num_classes=0,
+                global_pool="", in_chans=config["in_chans"],
             )
-        values.append(float(val))
+            self.pooling = nn.AdaptiveAvgPool2d(1)
+            self.dropout = nn.Dropout(p=config["dropout"])
+            self.linear = nn.Linear(config["feature_dim"], config["num_classes"])
+            self.image_size = tuple(image_size)          # (height, width)
+            self.pad_to_aspect_ratio = pad_to_aspect_ratio
 
-    arr = np.array(values, dtype=np.float32).reshape(1, -1)
-    return torch.tensor(arr, dtype=torch.float32)
+        def preprocess(self, image: np.ndarray) -> "torch.Tensor":
+            import cv2
+
+            height, width = self.image_size
+            if self.pad_to_aspect_ratio:
+                # Pad narrow images to the target aspect ratio, then resize.
+                h, w = image.shape
+                if h / w > height / width:
+                    extra = round(h / (height / width)) - w
+                    image = np.pad(image, ((0, 0), (extra // 2, extra - extra // 2)))
+                image = cv2.resize(image, (width, height), interpolation=cv2.INTER_LINEAR)
+            else:
+                # Fit the longest side, then centre on a black canvas.
+                h, w = image.shape
+                scale = height / max(h, w)
+                image = cv2.resize(
+                    image, (max(1, round(w * scale)), max(1, round(h * scale))),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+                h, w = image.shape
+                top, left = (height - h) // 2, (width - w) // 2
+                image = np.pad(image, ((top, height - h - top), (left, width - w - left)))
+            tensor = torch.from_numpy(np.ascontiguousarray(image)).float()
+            return (tensor / 255.0 - 0.5) * 2.0          # [0, 255] -> [-1, 1]
+
+        def forward(self, x):
+            features = self.pooling(self.backbone(x)).flatten(1)
+            logits = self.linear(features)
+            return logits[:, 0].sigmoid(), logits[:, 1:].softmax(dim=1)
+
+    class MammoEnsemble(nn.Module):
+        def __init__(self):
+            super().__init__()
+            for i in range(config["num_models"]):
+                setattr(self, f"net{i}", MammoNet(config["image_sizes"][i], config["pad_to_aspect_ratio"][i]))
+            self.num_models = config["num_models"]
+
+    return MammoEnsemble()
+
+
+def _build_crop_model(config: dict[str, Any]):
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from timm import create_model
+
+    class GeM(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.p = nn.Parameter(torch.ones(1) * 3)
+
+        def forward(self, x):
+            return F.adaptive_avg_pool2d(x.clamp(min=1e-6).pow(self.p), 1).pow(1.0 / self.p).flatten(1)
+
+    class MammoCrop(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.backbone = create_model(
+                config["backbone"], pretrained=False, num_classes=0,
+                global_pool="", in_chans=config["in_chans"],
+            )
+            self.pooling = GeM()
+            self.dropout = nn.Dropout(p=config["dropout"])
+            self.linear = nn.Linear(config["feature_dim"], config["num_classes"])
+
+        def forward(self, x):
+            x = (x / 255.0 - 0.5) * 2.0
+            return self.linear(self.pooling(self.backbone(x))).sigmoid()   # normalised x, y, w, h
+
+    return MammoCrop()
+
+
+def _load_weights(model, directory: Path):
+    from safetensors.torch import load_file
+
+    model.load_state_dict(load_file(str(directory / "model.safetensors")), strict=True)
+    return model.eval()
+
+
+def load_image_models():
+    """Load the Mammoscreen ensemble and the crop model. Cached after first call."""
+    global _screen_model, _crop_model
+    with _lock:
+        if _screen_model is not None and _crop_model is not None:
+            return _screen_model, _crop_model
+        for directory in (MAMMOSCREEN_DIR, MAMMO_CROP_DIR):
+            if not (directory / "model.safetensors").exists():
+                raise FileNotFoundError(
+                    "Mammogram model weights are missing. Run: python scripts/download_models.py"
+                )
+        screen_config = json.loads((MAMMOSCREEN_DIR / "config.json").read_text(encoding="utf-8"))
+        crop_config = json.loads((MAMMO_CROP_DIR / "config.json").read_text(encoding="utf-8"))
+        _crop_model = _load_weights(_build_crop_model(crop_config), MAMMO_CROP_DIR)
+        _screen_model = _load_weights(_build_screen_model(screen_config), MAMMOSCREEN_DIR)
+        logger.info("Mammoscreen and mammo-crop loaded")
+        return _screen_model, _crop_model
+
+
+def load_tabular_model():
+    """Load the Wisconsin-feature pipeline. Cached after first call."""
+    global _tabular_model, _tabular_metadata
+    with _lock:
+        if _tabular_model is not None:
+            return _tabular_model
+        if not TABULAR_MODEL_PATH.exists():
+            raise FileNotFoundError(
+                "Breast tabular model file is missing. Run: python scripts/train_breast_tabular.py"
+            )
+        import joblib
+
+        _tabular_model = joblib.load(TABULAR_MODEL_PATH)
+        if TABULAR_METADATA_PATH.exists():
+            _tabular_metadata = json.loads(TABULAR_METADATA_PATH.read_text(encoding="utf-8"))
+        return _tabular_model
+
+
+# ── Image handling ────────────────────────────────────────────────────────────
+
+def load_mammogram(image_path: str) -> np.ndarray:
+    """Read an image as 8-bit grayscale, refusing inputs that are not mammograms.
+
+    Mammograms are grayscale with a large dark background. A colour photo (a
+    selfie, a skin picture) would still get a score from the network, so it is
+    rejected here instead.
+    """
+    from PIL import Image
+
+    with Image.open(image_path) as handle:
+        rgb = np.asarray(handle.convert("RGB"), dtype=np.int16)
+    spread = np.abs(rgb - rgb.mean(axis=2, keepdims=True)).mean()
+    if spread > 4.0:
+        raise NotAMammogramError("the image is in colour; mammograms are grayscale")
+    gray = rgb.mean(axis=2).astype(np.uint8)
+    if min(gray.shape) < 256:
+        raise NotAMammogramError("the image is too small to assess (under 256 pixels)")
+    # Real mammograms measured at 10-90% near-black background; 3% leaves room
+    # for tightly cropped scans while still rejecting evenly lit grayscale photos.
+    if (gray < 40).mean() < 0.03:
+        raise NotAMammogramError("the image has no dark background around the breast")
+    return gray
+
+
+def _crop(gray: np.ndarray, crop_model) -> np.ndarray:
+    import cv2
+    import torch
+
+    small = cv2.resize(gray, (256, 256), interpolation=cv2.INTER_LINEAR)
+    with torch.inference_mode():
+        x, y, w, h = crop_model(torch.from_numpy(small).float()[None, None])[0].tolist()
+    height, width = gray.shape
+    left, top = int(x * width), int(y * height)
+    right, bottom = int((x + w) * width), int((y + h) * height)
+    cropped = gray[max(top, 0):min(bottom, height), max(left, 0):min(right, width)]
+    # A degenerate box means the crop model failed; fall back to the full image.
+    if cropped.shape[0] < height * 0.2 or cropped.shape[1] < width * 0.1:
+        return gray
+    return cropped
+
+
+def score_mammogram(image_path: str) -> dict[str, Any]:
+    """Return the raw ensemble outputs for one mammogram view."""
+    import torch
+
+    gray = load_mammogram(image_path)
+    screen_model, crop_model = load_image_models()
+    cropped = _crop(gray, crop_model)
+    cancer_scores, densities = [], []
+    with torch.inference_mode():
+        for i in range(screen_model.num_models):
+            net = getattr(screen_model, f"net{i}")
+            cancer, density = net(net.preprocess(cropped)[None, None])
+            cancer_scores.append(float(cancer[0]))
+            densities.append(density[0].numpy())
+    return {
+        "score": float(np.mean(cancer_scores)),
+        "density": DENSITY_LABELS[int(np.mean(densities, axis=0).argmax())],
+    }
 
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 
+def _predict_image(image_path: str) -> dict[str, Any]:
+    try:
+        result = score_mammogram(image_path)
+    except NotAMammogramError as error:
+        return {
+            "diagnosis": "image not assessed",
+            "confidence": None,
+            "summary": "The breast image was not assessed.",
+            "details": (
+                f"This does not look like a mammogram ({error}). The breast model only reads "
+                "X-ray mammogram images. If this is a skin photo, attach it as a skin photo."
+            ),
+        }
+    flagged = result["score"] >= SCREEN_THRESHOLD
+    return {
+        "diagnosis": (
+            "flagged for follow-up" if flagged else "not flagged by the screening model"
+        ),
+        "confidence": None,
+        "screening_score": result["score"],
+        "summary": (
+            "The screening model flagged this mammogram as needing a radiologist's review."
+            if flagged else
+            "The screening model did not flag this mammogram."
+        ),
+        "details": (
+            f"Mammoscreen ensemble, single view. At this cut-off the published evaluation "
+            f"caught {SCREEN_SENSITIVITY:.0%} of cancers and cleared {SCREEN_SPECIFICITY:.0%} "
+            f"of cancer-free breasts (AUROC {SCREEN_AUROC}), using two views per breast; a "
+            f"single view is less accurate. A flag is not a cancer diagnosis and most flags "
+            f"are false alarms; no flag does not rule cancer out. "
+            f"Estimated breast density: {result['density']}."
+        ),
+    }
+
+
+def _predict_tabular(features: dict[str, Any]) -> dict[str, Any]:
+    clean, rejected = validate_breast_features(features)
+    missing = [k for k in BREAST_FEATURE_KEYS if k not in clean]
+    if missing:
+        return {
+            "diagnosis": "insufficient data",
+            "confidence": None,
+            "summary": "No breast assessment was run: the lab measurements are incomplete.",
+            "details": (
+                f"All {len(BREAST_FEATURE_KEYS)} fine-needle-aspirate measurements are required; "
+                f"{len(missing)} are missing or invalid (for example {', '.join(missing[:3])}). "
+                "These come from a pathology report. Alternatively attach a mammogram image."
+            ),
+        }
+    model = load_tabular_model()
+    row = np.array([[clean[k] for k in BREAST_FEATURE_KEYS]], dtype=float)
+    probability = float(model.predict_proba(row)[0, 1])
+    malignant = probability >= 0.5
+    cv = _tabular_metadata.get("cross_validation", {})
+    quality = (
+        f" Cross-validated accuracy {cv['accuracy_at_0.5']:.1%} (AUROC {cv['auroc']:.3f})."
+        if cv else ""
+    )
+    return {
+        "diagnosis": "malignant pattern" if malignant else "benign pattern",
+        "confidence": probability if malignant else 1.0 - probability,
+        "probability_malignant": probability,
+        "summary": f"Model estimate that the sample is malignant: {probability:.0%}.",
+        "details": (
+            "Logistic regression on 30 fine-needle-aspirate measurements "
+            f"(Wisconsin Diagnostic Breast Cancer data).{quality}"
+        ),
+    }
+
+
 def predict(
     image_path: str | None = None,
-    features: dict[str, float | None] | None = None,
+    features: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """
-    Classify breast cancer risk.
-
-    Parameters
-    ----------
-    image_path : str, optional
-        Path to a breast scan image. Used by the CNN (primary model).
-    features : dict, optional
-        30 Wisconsin breast cancer features. Used by the MLP (fallback).
-
-    Returns
-    -------
-    dict with keys: diagnosis, confidence, probabilities, details
-    """
-    device = _get_device()
-
+    """Assess a mammogram image if given, otherwise the 30 tabular features."""
     if image_path is not None:
-        model = load_cnn_model()
-        tensor = _preprocess_image(image_path).to(device)
-        source = f"CNN classification on {image_path}"
-    elif features is not None:
-        model = load_mlp_model()
-        tensor = _preprocess_features(features).to(device)
-        source = "MLP classification on 30 tabular features"
-    else:
-        return {
-            "diagnosis": "no input provided",
-            "confidence": 0.0,
-            "probabilities": {"benign": 0.0, "malignant": 0.0},
-            "details": "No breast scan image or tabular features were provided.",
-        }
-
-    with torch.no_grad():
-        prob = model(tensor).item()
-
-    label = "malignant" if prob >= 0.5 else "benign"
-    confidence = prob if prob >= 0.5 else 1.0 - prob
-
+        return _predict_image(image_path)
+    if features and any(v is not None for v in features.values()):
+        return _predict_tabular(features)
     return {
-        "diagnosis": label,
-        "confidence": confidence,
-        "probabilities": {
-            "benign": 1.0 - prob,
-            "malignant": prob,
-        },
-        "details": f"{source}.",
+        "diagnosis": "no input provided",
+        "confidence": None,
+        "summary": "No breast assessment was run.",
+        "details": "No mammogram image or lab measurements were provided.",
     }

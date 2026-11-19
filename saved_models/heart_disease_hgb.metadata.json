@@ -1,0 +1,144 @@
+{
+  "model": "sklearn.ensemble.HistGradientBoostingClassifier",
+  "sklearn_version": "1.7.1",
+  "trained_on": "2026-11-15",
+  "training_script": "scripts/train_heart_model.py",
+  "data": "diag-agents/data/heart.csv (UCI Cleveland heart disease, processed)",
+  "data_sha256": "548eaf3b9d47152c9e0d25c167dc629740e8a4a13366a9be8fbd789ac3d2ebae",
+  "n_patients": 303,
+  "n_with_disease": 139,
+  "target": "angiographic coronary disease present (num > 0)",
+  "feature_order": [
+    "age",
+    "sex",
+    "chest_pain_type",
+    "resting_blood_pressure",
+    "cholesterol",
+    "fasting_blood_sugar",
+    "resting_ecg",
+    "max_heart_rate",
+    "exercise_induced_angina",
+    "oldpeak",
+    "slope",
+    "ca",
+    "thal"
+  ],
+  "encoding": {
+    "sex": {
+      "0": "female",
+      "1": "male"
+    },
+    "chest_pain_type": {
+      "1": "typical angina",
+      "2": "atypical angina",
+      "3": "non-anginal pain",
+      "4": "asymptomatic"
+    },
+    "fasting_blood_sugar": {
+      "0": "no",
+      "1": "yes"
+    },
+    "resting_ecg": {
+      "0": "normal",
+      "1": "ST-T wave abnormality",
+      "2": "left ventricular hypertrophy"
+    },
+    "exercise_induced_angina": {
+      "0": "no",
+      "1": "yes"
+    },
+    "slope": {
+      "1": "upsloping",
+      "2": "flat",
+      "3": "downsloping"
+    },
+    "ca": {
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3"
+    },
+    "thal": {
+      "3": "normal",
+      "6": "fixed defect",
+      "7": "reversible defect"
+    }
+  },
+  "missing_values": "NaN at inference; trained with random feature masking, no default imputation",
+  "evaluation": "5-fold stratified cross-validation repeated 3 times, by input scenario",
+  "cross_validation": {
+    "all_13_features": {
+      "features": [
+        "age",
+        "sex",
+        "chest_pain_type",
+        "resting_blood_pressure",
+        "cholesterol",
+        "fasting_blood_sugar",
+        "resting_ecg",
+        "max_heart_rate",
+        "exercise_induced_angina",
+        "oldpeak",
+        "slope",
+        "ca",
+        "thal"
+      ],
+      "auroc": 0.895,
+      "auroc_std": 0.026,
+      "brier": 0.136,
+      "accuracy_at_0.5": 0.81,
+      "sensitivity_at_0.5": 0.748,
+      "specificity_at_0.5": 0.862
+    },
+    "age_sex_bp_only": {
+      "features": [
+        "age",
+        "sex",
+        "resting_blood_pressure"
+      ],
+      "auroc": 0.702,
+      "auroc_std": 0.049,
+      "brier": 0.219,
+      "accuracy_at_0.5": 0.638,
+      "sensitivity_at_0.5": 0.544,
+      "specificity_at_0.5": 0.717
+    },
+    "minimum_required_plus_bp": {
+      "features": [
+        "age",
+        "sex",
+        "chest_pain_type",
+        "resting_blood_pressure"
+      ],
+      "auroc": 0.817,
+      "auroc_std": 0.048,
+      "brier": 0.174,
+      "accuracy_at_0.5": 0.739,
+      "sensitivity_at_0.5": 0.736,
+      "specificity_at_0.5": 0.742
+    },
+    "no_invasive_tests": {
+      "features": [
+        "age",
+        "sex",
+        "chest_pain_type",
+        "resting_blood_pressure",
+        "cholesterol",
+        "fasting_blood_sugar",
+        "resting_ecg",
+        "max_heart_rate",
+        "exercise_induced_angina",
+        "oldpeak",
+        "slope"
+      ],
+      "auroc": 0.855,
+      "auroc_std": 0.03,
+      "brier": 0.16,
+      "accuracy_at_0.5": 0.773,
+      "sensitivity_at_0.5": 0.746,
+      "specificity_at_0.5": 0.797
+    }
+  },
+  "weights_sha256": "91a879a94394fa7497fc55c1a7770c4855008229200f2867df5970d1834fdc97",
+  "limitations": "303 patients referred for coronary angiography at one US clinic in the 1980s; nearly half had disease, so the output is not a general-population risk. Not clinically validated."
+}

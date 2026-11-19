@@ -4,50 +4,29 @@ Pydantic request/response schemas for the MedAgent API.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
-
-
-# ── Request Models ────────────────────────────────────────────────────────────
-
-class ChatRequest(BaseModel):
-    """Incoming chat message from the frontend."""
-    conversation_id: str = Field(
-        description="Unique session/conversation identifier for multi-turn persistence"
-    )
-    message: str = Field(
-        description="Patient's natural language message or query"
-    )
-    heart_rate: int | None = Field(
-        default=None,
-        description="Heart rate in BPM (optional dedicated numeric input)"
-    )
-    breast_scan_path: str | None = Field(
-        default=None,
-        description="Path/URI to a breast scan image (if uploaded)"
-    )
-    skin_photo_path: str | None = Field(
-        default=None,
-        description="Path/URI to a skin lesion photo (if uploaded)"
-    )
-    patient_context: str | None = Field(
-        default=None,
-        description="Formatted intake summary (triage urgency, history, allergies, vitals) "
-                    "collected by the front-desk clipboard"
-    )
-    age: int | None = Field(default=None, description="Patient age in years")
-    sex: int | None = Field(default=None, description="Sex for the cardiac model: 0=female, 1=male")
-    resting_blood_pressure: int | None = Field(
-        default=None, description="Systolic blood pressure in mmHg"
-    )
 
 
 # ── Response Models ───────────────────────────────────────────────────────────
 
 class DiagnosisResult(BaseModel):
-    """A single specialist's diagnosis output."""
+    """A single specialist's output."""
     diagnosis: str
-    confidence: float
-    details: str
+    confidence: float | None = Field(
+        default=None,
+        description="Model probability of the stated result; null when the model reports "
+                    "a threshold decision or was not run",
+    )
+    summary: str = ""
+    details: str = ""
+
+
+class HistoryEntry(BaseModel):
+    """A single message in the conversation history."""
+    role: str
+    content: str
 
 
 class ChatResponse(BaseModel):
@@ -60,24 +39,20 @@ class ChatResponse(BaseModel):
     routed_to: str
     messages: list[HistoryEntry] = Field(
         default_factory=list,
-        description="Agent-by-agent conversation steps for step-by-step display"
+        description="This turn's specialist steps followed by the final reply",
     )
-    disclaimer: str = Field(
-        default="",
-        description="Clinical disclaimer appended to the synthesis report"
-    )
+    disclaimer: str = Field(default="", description="Clinical disclaimer to show with the reply")
 
 
 class UploadResponse(BaseModel):
     """Response after a file upload."""
-    file_path: str
-    file_type: str
+    file_id: str
+    kind: str
 
 
-class HistoryEntry(BaseModel):
-    """A single message in the conversation history."""
-    role: str
-    content: str
+class ProfileResponse(BaseModel):
+    """The account's health profile (see api.profiles.HealthProfile), or null."""
+    profile: Any | None = None
 
 
 class HistoryResponse(BaseModel):
@@ -90,14 +65,17 @@ class HistoryResponse(BaseModel):
 
 class UserCreate(BaseModel):
     """New user registration payload."""
-    username: str = Field(..., min_length=3, max_length=32, description="Unique username")
-    password: str = Field(..., min_length=6, max_length=128, description="Password")
+    username: str = Field(
+        ..., min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.@+-]+$",
+        description="Unique username or email (letters, digits, _ . - @ +; no spaces)",
+    )
+    password: str = Field(..., min_length=8, max_length=72, description="Password")
 
 
 class UserLogin(BaseModel):
     """Login credentials payload."""
-    username: str
-    password: str
+    username: str = Field(..., max_length=64)
+    password: str = Field(..., max_length=128)
 
 
 class UserResponse(BaseModel):

@@ -1,11 +1,14 @@
-"""
-Skin Disease specialist — loads a trained MobileNetV2 (TensorFlow/Keras) from disk
-and classifies skin lesion images into diagnostic categories.
-"""
+"""Skin lesion specialist.
 
+A Vision Transformer (ViT-B/16) fine-tuned on HAM10000 dermatoscope images,
+published as https://huggingface.co/Anwarkh1/Skin_Cancer-Image_Classification
+(Apache-2.0). It distinguishes seven lesion types and nothing else: it has no
+class for rashes, infections, or healthy skin.
+"""
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -13,86 +16,124 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-MODEL_DIR = Path(__file__).resolve().parent.parent / "saved_models"
-MODEL_PATH = MODEL_DIR / "skin_disease_mobilenetv2.keras"
-LABELS_PATH = MODEL_DIR / "skin_label_classes.npy"
+MODEL_DIR = Path(__file__).resolve().parent.parent / "saved_models" / "skin_vit"
 IMG_SIZE = 224
 
+# Model output index -> (name shown to the patient, needs prompt medical review)
+CLASSES: tuple[tuple[str, bool], ...] = (
+    ("benign keratosis (seborrheic keratosis / solar lentigo)", False),
+    ("basal cell carcinoma", True),
+    ("actinic keratosis (pre-cancerous)", True),
+    ("vascular lesion", False),
+    ("melanocytic nevus (mole)", False),
+    ("melanoma", True),
+    ("dermatofibroma", False),
+)
+_EXPECTED_LABELS = (
+    "benign_keratosis-like_lesions", "basal_cell_carcinoma", "actinic_keratoses",
+    "vascular_lesions", "melanocytic_Nevi", "melanoma", "dermatofibroma",
+)
+
+# Measured by scripts/evaluate_skin_model.py; see saved_models/README.md.
+EVALUATION_NOTE = (
+    "On 248 held-out dermatoscope images it had not seen, it named the right type 86% of "
+    "the time and flagged 19 of the 21 lesions needing review."
+)
+
 _model = None
-_label_classes = None
+_lock = threading.Lock()
 
 
-def load_model() -> tuple[Any, np.ndarray]:
-    """
-    Load the Skin Disease MobileNetV2 and label classes from disk.
-    Returns (model, label_classes). Cached after first call.
-    """
-    global _model, _label_classes
-    if _model is not None and _label_classes is not None:
-        return _model, _label_classes
-
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"Skin disease model not found at {MODEL_PATH}. "
-            "Run the skin-disease notebook and export the model first."
-        )
-    if not LABELS_PATH.exists():
-        raise FileNotFoundError(
-            f"Label classes not found at {LABELS_PATH}. "
-            "Run the skin-disease notebook and export the label classes first."
-        )
-
-    # Lazy import to avoid loading TensorFlow at module-import time
-    import tensorflow as tf
-    _model = tf.keras.models.load_model(MODEL_PATH)
-    _label_classes = np.load(LABELS_PATH, allow_pickle=True)
-
-    logger.info("Skin disease model loaded from %s", MODEL_PATH)
-    return _model, _label_classes
+class NotASkinPhotoError(ValueError):
+    """The image does not look like a colour skin photo, so it was not scored."""
 
 
-def _preprocess_image(image_path: str) -> np.ndarray:
-    """Load an image and prepare it for MobileNetV2 inference."""
-    import tensorflow as tf
+def load_model():
+    """Load the ViT classifier from disk. Cached after first call."""
+    global _model
+    with _lock:
+        if _model is not None:
+            return _model
+        if not (MODEL_DIR / "model.safetensors").exists():
+            raise FileNotFoundError(
+                "Skin model weights are missing. Run: python scripts/download_models.py"
+            )
+        from transformers import ViTForImageClassification
 
-    img = tf.io.read_file(image_path)
-    img = tf.image.decode_image(img, channels=3, expand_animations=False)
-    img = tf.image.resize(img, (IMG_SIZE, IMG_SIZE))
-    img = tf.cast(img, tf.float32)
-    # MobileNetV2 expects pixels in [-1, 1]
-    img = tf.keras.applications.mobilenet_v2.preprocess_input(img)
-    return img.numpy()
+        model = ViTForImageClassification.from_pretrained(str(MODEL_DIR), local_files_only=True)
+        labels = tuple(model.config.id2label[i] for i in range(len(CLASSES)))
+        if labels != _EXPECTED_LABELS:
+            raise RuntimeError(f"Unexpected skin model label order: {labels}")
+        _model = model.eval()
+        logger.info("Skin model loaded from %s", MODEL_DIR)
+        return _model
+
+
+def preprocess(image_path: str):
+    """Resize to 224x224 and scale pixels to [-1, 1], as the base ViT expects."""
+    import torch
+    from PIL import Image
+
+    with Image.open(image_path) as handle:
+        rgb = handle.convert("RGB")
+        pixels = np.asarray(rgb, dtype=np.int16)
+        resized = rgb.resize((IMG_SIZE, IMG_SIZE), Image.Resampling.BILINEAR)
+    if np.abs(pixels - pixels.mean(axis=2, keepdims=True)).mean() < 2.0:
+        raise NotASkinPhotoError("the image is grayscale; a colour photo of the skin is needed")
+    array = np.asarray(resized, dtype=np.float32) / 255.0
+    array = (array - 0.5) / 0.5
+    return torch.from_numpy(array).permute(2, 0, 1).unsqueeze(0)
+
+
+def class_probabilities(image_path: str) -> np.ndarray:
+    import torch
+
+    model = load_model()
+    with torch.inference_mode():
+        logits = model(pixel_values=preprocess(image_path)).logits
+    return logits.softmax(dim=1)[0].numpy()
 
 
 def predict(image_path: str) -> dict[str, Any]:
-    """
-    Classify a skin lesion image.
+    """Classify a skin lesion photo into one of seven lesion types."""
+    try:
+        probabilities = class_probabilities(image_path)
+    except NotASkinPhotoError as error:
+        return {
+            "diagnosis": "image not assessed",
+            "confidence": None,
+            "summary": "The skin photo was not assessed.",
+            "details": (
+                f"This does not look like a skin photo ({error}). "
+                "If it is a mammogram, attach it as a mammogram."
+            ),
+        }
 
-    Parameters
-    ----------
-    image_path : str
-        Path to the skin lesion image file.
-
-    Returns
-    -------
-    dict with keys: diagnosis, confidence, probabilities, details
-    """
-    model, label_classes = load_model()
-
-    img_array = _preprocess_image(image_path)
-    img_batch = np.expand_dims(img_array, axis=0)
-
-    predictions = model.predict(img_batch, verbose=0)[0]
-    predicted_idx = int(np.argmax(predictions))
-    confidence = float(predictions[predicted_idx])
-    predicted_label = label_classes[predicted_idx]
+    order = np.argsort(probabilities)[::-1]
+    top = int(order[0])
+    name, _ = CLASSES[top]
+    concerning = float(sum(p for p, (_, flag) in zip(probabilities, CLASSES) if flag))
+    ranked = ", ".join(f"{CLASSES[i][0]} {probabilities[i]:.0%}" for i in order[:3])
+    review = concerning >= 0.20
 
     return {
-        "diagnosis": str(predicted_label),
-        "confidence": confidence,
-        "probabilities": {
-            str(label_classes[i]): float(predictions[i])
-            for i in range(len(label_classes))
-        },
-        "details": f"MobileNetV2 classification on {image_path}.",
+        "diagnosis": name,
+        "confidence": float(probabilities[top]),
+        "probability_concerning": concerning,
+        "needs_prompt_review": review,
+        "summary": (
+            f"Closest match: {name} ({probabilities[top]:.0%}). "
+            + (
+                f"Types that need prompt medical review (melanoma, basal cell carcinoma, "
+                f"actinic keratosis) total {concerning:.0%}: please have this looked at soon."
+                if review else
+                f"Types that need prompt medical review total {concerning:.0%}."
+            )
+        ),
+        "details": (
+            f"Top matches: {ranked}. The model only knows seven lesion types and was trained "
+            "on dermatoscope close-ups, so it is less reliable on ordinary phone photos and "
+            "cannot recognise rashes, infections or healthy skin. " + EVALUATION_NOTE
+        ).strip(),
+        "probabilities": {CLASSES[i][0]: float(probabilities[i]) for i in range(len(CLASSES))},
     }

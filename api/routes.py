@@ -1,137 +1,126 @@
 """
 FastAPI route definitions for the MedAgent API.
+
+Every endpoint except register/login requires a Bearer token. Conversations and
+uploads belong to the authenticated user.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import logging
+import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
+from api.auth import get_current_user, login_user, register_user
+from api.graph_runner import create_conversation, get_history, run_graph
+from api.profiles import (
+    HealthProfile,
+    get_profile,
+    profile_context,
+    profile_measurements,
+    save_profile,
+)
 from api.schemas import (
     ChatResponse,
     DiagnosisResult,
     HistoryEntry,
     HistoryResponse,
+    ProfileResponse,
     TokenResponse,
     UploadResponse,
     UserCreate,
     UserLogin,
     UserResponse,
 )
-from api.auth import get_current_user, login_user, register_user
-from api.graph_runner import create_conversation, get_history, run_graph
-from ingestion import DEFAULT_UPLOAD_DIR, resolve_upload_path, save_uploaded_file
+from ingestion import MAX_UPLOAD_BYTES, InvalidUpload, purge_old_uploads, resolve_upload, save_upload
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
+
+router = APIRouter(dependencies=[Depends(get_current_user)])
 auth_router = APIRouter()
 
-UPLOAD_DIR = DEFAULT_UPLOAD_DIR
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
-
-
-def _validate_image(filename: str) -> None:
-    """Raise if the file extension is not a supported image type."""
-    ext = Path(filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
-        )
+MAX_MESSAGE_CHARS = 4000
+MAX_CONTEXT_CHARS = 6000
+_CONVERSATION_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def _validate_upload_path(field: str, value: str | None) -> str | None:
-    """Accept a client-supplied image path only if it is a file we saved via /upload."""
-    if not value:
+def _conversation_id(value: str) -> str:
+    if not _CONVERSATION_ID.fullmatch(value):
+        raise HTTPException(status_code=400, detail="Invalid conversation_id.")
+    return value
+
+
+def _owned_upload(field: str, file_id: str | None, user_id: int) -> str | None:
+    if not file_id:
         return None
-    resolved = resolve_upload_path(value, UPLOAD_DIR)
-    if resolved is None:
+    path = resolve_upload(file_id, user_id)
+    if path is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid {field}: must be a file_path returned by /api/upload.",
+            detail=f"Invalid {field}: use a file_id returned by /api/upload (uploads expire after a day).",
         )
-    return resolved
+    return path
+
+
+def _to_diagnosis(data: dict | None) -> DiagnosisResult | None:
+    if not data or not data.get("diagnosis"):
+        return None
+    return DiagnosisResult(
+        diagnosis=data["diagnosis"],
+        confidence=data.get("confidence"),
+        summary=data.get("summary", ""),
+        details=data.get("details", ""),
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
-    message: str = Form(...),
+    message: str = Form(..., min_length=1, max_length=MAX_MESSAGE_CHARS),
     conversation_id: str = Form(...),
-    heart_rate: int | None = Form(default=None),
-    breast_scan_path: str | None = Form(default=None),
-    skin_photo_path: str | None = Form(default=None),
-    patient_context: str | None = Form(default=None),
-    age: int | None = Form(default=None),
-    sex: int | None = Form(default=None),
-    resting_blood_pressure: int | None = Form(default=None),
-    file: UploadFile | None = File(default=None),
+    breast_scan_id: str | None = Form(default=None),
+    skin_photo_id: str | None = Form(default=None),
+    triage_context: str | None = Form(default=None, max_length=MAX_CONTEXT_CHARS),
+    user: dict = Depends(get_current_user),
 ) -> ChatResponse:
     """
-    Send a message to the MedAgent system.
+    Send a message. Images are attached by the file_id returned from /upload.
 
-    Supports both multipart/form-data (with optional file attachment)
-    and JSON payloads.
+    The patient's health profile is read from their account, not sent by the
+    client. ``triage_context`` carries only this conversation's safety
+    screening result.
     """
-    breast_scan_path = _validate_upload_path("breast_scan_path", breast_scan_path)
-    skin_photo_path = _validate_upload_path("skin_photo_path", skin_photo_path)
+    conversation_id = _conversation_id(conversation_id)
+    breast_scan_path = _owned_upload("breast_scan_id", breast_scan_id, user["id"])
+    skin_photo_path = _owned_upload("skin_photo_id", skin_photo_id, user["id"])
 
-    # Handle optional file attachment
-    if file and file.filename:
-        _validate_image(file.filename)
-        file_bytes = await file.read()
-        saved_path = save_uploaded_file(file_bytes, file.filename, UPLOAD_DIR)
-        # Route the uploaded image based on filename heuristic or existing paths
-        if breast_scan_path is None and skin_photo_path is None:
-            # Auto-detect: if filename suggests breast, set breast path
-            fname_lower = file.filename.lower()
-            if any(kw in fname_lower for kw in ("breast", "mamm", "chest")):
-                breast_scan_path = saved_path
-            else:
-                skin_photo_path = saved_path
+    profile = get_profile(user["id"])
+    on_file = profile_measurements(profile)
+    patient_context = "\n\n".join(
+        part for part in ((triage_context or "").strip(), profile_context(profile)) if part
+    ) or None
 
-    # run_graph makes blocking Ollama/model calls that take tens of seconds;
-    # run it in a worker thread so it doesn't stall the event loop (and every
-    # other request) for the duration.
+    # The graph makes blocking model/LLM calls that take seconds to minutes;
+    # run it in a worker thread so the event loop keeps serving other requests.
     try:
         result = await run_in_threadpool(
             run_graph,
+            user_id=user["id"],
             conversation_id=conversation_id,
             message=message,
-            heart_rate=heart_rate,
+            heart_rate=on_file["heart_rate"],
             breast_scan_path=breast_scan_path,
             skin_photo_path=skin_photo_path,
             patient_context=patient_context,
-            age=age,
-            sex=sex,
-            resting_blood_pressure=resting_blood_pressure,
+            age=on_file["age"],
+            sex=on_file["sex"],
+            resting_blood_pressure=on_file["resting_blood_pressure"],
         )
-    except ConnectionError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Ollama server unavailable: {e}",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Graph execution failed: {e}")
-
-    def _to_diagnosis(data: dict | None) -> DiagnosisResult | None:
-        if not data or not data.get("diagnosis"):
-            return None
-        return DiagnosisResult(
-            diagnosis=data["diagnosis"],
-            confidence=data.get("confidence", 0.0),
-            details=data.get("details", ""),
-        )
-
-    # Build agent-by-agent messages from the result
-    agent_messages = result.get("messages", [])
-    history_entries = [
-        HistoryEntry(role=m["role"], content=m["content"])
-        for m in agent_messages
-        if m["role"] == "assistant"
-    ]
+    except Exception:
+        logger.exception("Chat turn failed for conversation %s", conversation_id)
+        raise HTTPException(status_code=500, detail="The assistant hit an internal error. Please try again.")
 
     return ChatResponse(
         conversation_id=conversation_id,
@@ -140,29 +129,40 @@ async def chat(
         breast_cancer=_to_diagnosis(result.get("breast_cancer")),
         skin_disease=_to_diagnosis(result.get("skin_disease")),
         routed_to=result["routed_to"],
-        messages=history_entries,
+        messages=[HistoryEntry(**m) for m in result["messages"]],
         disclaimer=result.get("disclaimer", ""),
     )
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_file(
+    file: UploadFile = File(...),
+    kind: Literal["mammogram", "skin"] = Form(...),
+    user: dict = Depends(get_current_user),
+) -> UploadResponse:
     """
-    Upload an image file (breast scan or skin photo).
-    Returns the saved file path to include in subsequent /chat requests.
+    Upload a mammogram or skin photo. Returns a file_id to pass to /chat as
+    breast_scan_id or skin_photo_id.
     """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided")
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    try:
+        file_id = await run_in_threadpool(save_upload, data, user["id"])
+    except InvalidUpload as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await run_in_threadpool(purge_old_uploads)
+    return UploadResponse(file_id=file_id, kind=kind)
 
-    _validate_image(file.filename)
-    file_bytes = await file.read()
-    saved_path = save_uploaded_file(file_bytes, file.filename, UPLOAD_DIR)
 
-    ext = Path(saved_path).suffix.lower()
-    return UploadResponse(
-        file_path=saved_path,
-        file_type=ext.lstrip("."),
-    )
+@router.get("/profile", response_model=ProfileResponse)
+def read_profile(user: dict = Depends(get_current_user)) -> ProfileResponse:
+    """The caller's health profile, or null if they have not filled it in."""
+    return ProfileResponse(profile=get_profile(user["id"]))
+
+
+@router.put("/profile", response_model=ProfileResponse)
+def write_profile(profile: HealthProfile, user: dict = Depends(get_current_user)) -> ProfileResponse:
+    """Create or replace the caller's health profile."""
+    return ProfileResponse(profile=save_profile(user["id"], profile))
 
 
 @router.post("/conversations", response_model=dict)
@@ -172,12 +172,12 @@ def new_conversation() -> dict:
 
 
 @router.get("/history/{conversation_id}", response_model=HistoryResponse)
-def history(conversation_id: str) -> HistoryResponse:
-    """Retrieve the full message history for a conversation."""
-    messages = get_history(conversation_id)
+def history(conversation_id: str, user: dict = Depends(get_current_user)) -> HistoryResponse:
+    """Retrieve the message history of one of the caller's conversations."""
+    conversation_id = _conversation_id(conversation_id)
     return HistoryResponse(
         conversation_id=conversation_id,
-        messages=[HistoryEntry(**m) for m in messages],
+        messages=[HistoryEntry(**m) for m in get_history(user["id"], conversation_id)],
     )
 
 
