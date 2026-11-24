@@ -13,9 +13,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
-import torch.nn as nn
 from PIL import Image
+
+try:
+    import torch
+    import torch.nn as nn
+except ModuleNotFoundError:  # pragma: no cover - optional dependency for local ML inference
+    torch = None
+    nn = None
 
 logger = logging.getLogger(__name__)
 
@@ -40,82 +45,92 @@ FEATURE_KEYS = [
 
 # ── CNN Architecture (image input) ───────────────────────────────────────────
 
-class BreastCancerCNN(nn.Module):
-    """
-    CNN for breast cancer classification (benign vs malignant).
-    Input: RGB breast scan image (224×224).
-    Output: single sigmoid probability in [0, 1].
-    """
+if nn is not None:
+    class BreastCancerCNN(nn.Module):
+        """
+        CNN for breast cancer classification (benign vs malignant).
+        Input: RGB breast scan image (224×224).
+        Output: single sigmoid probability in [0, 1].
+        """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+        def __init__(self) -> None:
+            super().__init__()
+            self.features = nn.Sequential(
+                nn.Conv2d(3, 32, kernel_size=3, padding=1),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
 
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+                nn.Conv2d(32, 64, kernel_size=3, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
 
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+                nn.Conv2d(64, 128, kernel_size=3, padding=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
 
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),
-        )
+                nn.Conv2d(128, 256, kernel_size=3, padding=1),
+                nn.BatchNorm2d(256),
+                nn.ReLU(),
+                nn.AdaptiveAvgPool2d((1, 1)),
+            )
+            self.classifier = nn.Sequential(
+                nn.Flatten(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(128, 1),
+                nn.Sigmoid(),
+            )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            x = self.features(x)
+            x = self.classifier(x)
+            return x
+else:
+    class BreastCancerCNN:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("PyTorch is required for breast cancer inference, but it is not installed in this environment.")
 
 
 # ── MLP Architecture (tabular input) ─────────────────────────────────────────
 
-class BreastCancerMLP(nn.Module):
-    """
-    Multi-layer perceptron for breast cancer classification.
-    Input:  30 normalised tumour features (Wisconsin dataset).
-    Output: single sigmoid probability in [0, 1].
-    """
+if nn is not None:
+    class BreastCancerMLP(nn.Module):
+        """
+        Multi-layer perceptron for breast cancer classification.
+        Input:  30 normalised tumour features (Wisconsin dataset).
+        Output: single sigmoid probability in [0, 1].
+        """
 
-    def __init__(self, input_dim: int = 30) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
+        def __init__(self, input_dim: int = 30) -> None:
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, 128),
+                nn.BatchNorm1d(128),
+                nn.ReLU(),
+                nn.Dropout(0.3),
 
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
 
-            nn.Linear(64, 32),
-            nn.ReLU(),
+                nn.Linear(64, 32),
+                nn.ReLU(),
 
-            nn.Linear(32, 1),
-            nn.Sigmoid(),
-        )
+                nn.Linear(32, 1),
+                nn.Sigmoid(),
+            )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return self.net(x)
+else:
+    class BreastCancerMLP:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("PyTorch is required for breast cancer inference, but it is not installed in this environment.")
 
 
 # ── Device ────────────────────────────────────────────────────────────────────
@@ -123,8 +138,10 @@ class BreastCancerMLP(nn.Module):
 _device = None
 
 
-def _get_device() -> torch.device:
+def _get_device() -> "torch.device":
     global _device
+    if torch is None:
+        raise RuntimeError("PyTorch is required for breast cancer inference, but it is not installed in this environment.")
     if _device is None:
         _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return _device
@@ -233,6 +250,8 @@ def predict(
     -------
     dict with keys: diagnosis, confidence, probabilities, details
     """
+    if torch is None:
+        raise RuntimeError("PyTorch is required for breast cancer inference, but it is not installed in this environment.")
     device = _get_device()
 
     if image_path is not None:
